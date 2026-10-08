@@ -4,10 +4,10 @@ from datetime import datetime
 
 @dataclass
 class Video:
-    platform: str                    # "reddit", "youtube", ...
+    platform: str                    # "bluesky", "youtube", ...
     native_id: str                   # identifies one video on the platform; unique with platform
     url: str
-    channel_id: str                  # stable platform ID (subreddit, channel), never a handle
+    channel_id: str                  # stable platform ID (e.g. Bluesky DID), never a handle
     posted_at: datetime              # platform-reported, tz-aware UTC
     deleted_at: datetime | None = None   # None = still live
     video_id: int | None = None          # internal key; None until stored
@@ -35,5 +35,5 @@ class Match:
     video_id: int
     clip_range: tuple[float, float]   # seconds in the query clip that match
     video_range: tuple[float, float]  # corresponding seconds in the stored video
-    shift: int                        # video seconds - clip seconds, 1 s bins
+    shift: float                      # video seconds - clip seconds (median over supporting hits)
     votes: int                        # distinct clip frames supporting this match

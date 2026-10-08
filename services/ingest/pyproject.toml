@@ -1,0 +1,15 @@
+[project]
+name = "ingest"
+version = "0.0.0"
+description = "Platform connectors: fetch posts, fingerprint videos, write to store."
+requires-python = ">=3.11"
+dependencies = ["core", "fingerprint", "store"]
+
+[tool.uv.sources]
+core = { workspace = true }
+fingerprint = { workspace = true }
+store = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

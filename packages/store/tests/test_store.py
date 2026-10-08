@@ -8,7 +8,7 @@ POSTED = datetime(2026, 10, 1, tzinfo=timezone.utc)
 
 
 def video(native_id: str = "abc") -> Video:
-    return Video(platform="reddit", native_id=native_id, url="https://example.com", channel_id="t5_x", posted_at=POSTED)
+    return Video(platform="bluesky", native_id=native_id, url="https://example.com", channel_id="did:plc:x", posted_at=POSTED)
 
 
 def random_hash(seed: int) -> bytes:

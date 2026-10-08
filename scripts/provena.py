@@ -1,8 +1,9 @@
 """Minimal Provena CLI: ingest videos, query a clip.
 
-    uv run python scripts/provena.py ingest video.mp4 --platform reddit --native-id abc123 \
-        --channel t5_2qh13 --posted-at 2026-10-01T10:00:00Z [--url URL]
+    uv run python scripts/provena.py ingest video.mp4 --platform bluesky --native-id DID/RKEY \
+        --channel DID --posted-at 2026-10-01T10:00:00Z [--url URL]
     uv run python scripts/provena.py query clip.mp4
+    uv run python scripts/provena.py bluesky apnews.com reuters.com [--limit 50]
 """
 
 import argparse
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from core import Video
 from fingerprint import QUERY_SECONDS_PER_HASH, fingerprint_video
+from ingest import bluesky
 from matcher import match
 from store import Store
 
@@ -43,7 +45,15 @@ def query(store: Store, args: argparse.Namespace) -> None:
         tag = "ORIGIN" if i == 0 else "      "
         print(f"{tag} {v.posted_at:%Y-%m-%d %H:%M} {v.platform}:{v.native_id} ({v.channel_id})"
               f"  clip {m.clip_range[0]:.1f}-{m.clip_range[1]:.1f}s = video {m.video_range[0]:.1f}-{m.video_range[1]:.1f}s"
-              f"  shift {m.shift}s, {m.votes}/{len(frames)} votes")
+              f"  shift {m.shift:.2f}s, {m.votes}/{len(frames)} votes")
+
+
+def ingest_bluesky(store: Store, args: argparse.Namespace) -> None:
+    for actor in args.accounts:
+        added = bluesky.ingest_posts(store, bluesky.author_video_posts(actor, args.limit))
+        for v in added:
+            print(f"video {v.video_id} {v.posted_at:%Y-%m-%d %H:%M} {v.url}")
+        print(f"{actor}: {len(added)} new videos")
 
 
 def main() -> None:
@@ -62,11 +72,15 @@ def main() -> None:
     q = sub.add_parser("query")
     q.add_argument("clip", type=Path)
 
+    b = sub.add_parser("bluesky")
+    b.add_argument("accounts", nargs="+", help="handles or DIDs of news/organization accounts")
+    b.add_argument("--limit", type=int, default=50, help="video posts per account")
+
     args = p.parse_args()
     args.db.parent.mkdir(parents=True, exist_ok=True)
     store = Store(args.db)
     try:
-        (ingest if args.command == "ingest" else query)(store, args)
+        {"ingest": ingest, "query": query, "bluesky": ingest_bluesky}[args.command](store, args)
     finally:
         store.close()
 

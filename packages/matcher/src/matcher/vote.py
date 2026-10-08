@@ -1,4 +1,5 @@
 import math
+import statistics
 from collections import defaultdict
 
 from core import Hit, Match
@@ -21,7 +22,8 @@ def match(hits: list[Hit], min_votes: int = 5) -> list[Match]:
     def votes(video_id: int, shift: int) -> int:
         return len({h.query_offset for h in support(video_id, shift)})
 
-    candidates = sorted(bins, key=lambda key: (-votes(*key), key))
+    # Ties between neighbouring bins go to the bin with the most votes of its own.
+    candidates = sorted(bins, key=lambda key: (-votes(*key), -len({h.query_offset for h in bins[key]}), key))
     accepted: list[tuple[int, int]] = []
     matches = []
     for video_id, shift in candidates:
@@ -36,7 +38,7 @@ def match(hits: list[Hit], min_votes: int = 5) -> list[Match]:
             video_id=video_id,
             clip_range=(min(h.query_offset for h in hs), max(h.query_offset for h in hs)),
             video_range=(min(h.offset for h in hs), max(h.offset for h in hs)),
-            shift=shift,
+            shift=statistics.median(h.offset - h.query_offset for h in hs),
             votes=n,
         ))
     return matches

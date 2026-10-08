@@ -41,5 +41,5 @@ def test_query_finds_source(videos, tmp_path):
     clip = fingerprint_video(videos / "clip.mp4", QUERY_SECONDS_PER_HASH)
     [m] = match(s.search(clip))
     assert m.video_id == ids["mandelbrot"]
-    assert m.shift in (10, 11)
+    assert m.shift == pytest.approx(10.5, abs=0.3)
     assert m.votes >= 0.8 * len(clip)

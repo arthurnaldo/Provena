@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "core",
     "fingerprint",
+    "ingest",
     "matcher",
     "provena",
     "store",
@@ -68,6 +69,23 @@ dependencies = [
 requires-dist = [
     { name = "core", editable = "packages/core" },
     { name = "vpdq" },
+]
+
+[[package]]
+name = "ingest"
+version = "0.0.0"
+source = { editable = "services/ingest" }
+dependencies = [
+    { name = "core" },
+    { name = "fingerprint" },
+    { name = "store" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "core", editable = "packages/core" },
+    { name = "fingerprint", editable = "packages/fingerprint" },
+    { name = "store", editable = "packages/store" },
 ]
 
 [[package]]
@@ -273,6 +291,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "core" },
     { name = "fingerprint" },
+    { name = "ingest" },
     { name = "matcher" },
     { name = "store" },
 ]
@@ -286,6 +305,7 @@ dev = [
 requires-dist = [
     { name = "core", editable = "packages/core" },
     { name = "fingerprint", editable = "packages/fingerprint" },
+    { name = "ingest", editable = "services/ingest" },
     { name = "matcher", editable = "packages/matcher" },
     { name = "store", editable = "packages/store" },
 ]

@@ -48,6 +48,11 @@ class Store:
     def close(self) -> None:
         self.db.close()
 
+    def has_video(self, platform: str, native_id: str) -> bool:
+        return self.db.execute(
+            "SELECT 1 FROM videos WHERE platform = ? AND native_id = ?", (platform, native_id)
+        ).fetchone() is not None
+
     def add_video(self, video: Video, frames: list[Frame]) -> Video:
         """Store a video and all its frames. Re-adding the same (platform, native_id) is a no-op."""
         existing = self.db.execute(
