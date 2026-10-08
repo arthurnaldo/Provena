@@ -1,0 +1,17 @@
+[project]
+name = "provena"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = ["core", "fingerprint", "matcher", "store"]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv.sources]
+core = { workspace = true }
+fingerprint = { workspace = true }
+matcher = { workspace = true }
+store = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/core", "packages/fingerprint", "packages/matcher", "packages/store"]
