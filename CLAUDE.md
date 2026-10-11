@@ -24,7 +24,29 @@ This branch (`restart`) is a fresh start. `main` holds an older design (and a st
 - Business angle chosen to validate (not yet validated): duplicate / edited-copy / fraud checks for video
   data vendors (paid collection, marketplaces, stock libraries). See "Strategy" and "Go-to-market".
 
-## Repo layout
+## Repo layout (branch `provena-audit`, Oct 11 2026)
+
+Everything below except `data/` was removed on this branch; the old code is on `restart` (commit bac2a9e).
+The repo is now one pip package, `provena-audit/`:
+
+```
+pyproject.toml, CMakeLists.txt   scikit-build-core + nanobind; deps numpy, pdqhash, fsspec ([cloud]: s3fs, gcsfs)
+src/provena_audit/
+  fingerprint.py   ffmpeg stream -> PDQ at 4/s + quality -> shards (--part/--of, resumable, temp copies for s3/gs)
+  shards.py        send/shard_*.npz (random IDs, durations, per-frame owner/offset/pdq/quality), private/names_*.csv
+  storage.py       local / s3:// / gs:// via fsspec
+  audit.py         shards -> _kernel.find_pairs -> pairs.csv + printed duplicate time (lesser copy, merged)
+  kernel.cpp       vote-while-searching (see "Planned: C++ audit kernel", now built): no FAISS, no top-k cap,
+                   3-bin voting once per frame (honest vote counts), every bin >= min votes with ±2 blocking
+  cli.py           provena-audit fingerprint <src> | audit <send>
+tests/test_openvid.py + pairs.csv   downloads 20 known OpenVid pairs (10 hidden, 10 listed twice)
+```
+Run: `cd provena-audit && uv sync && uv run pytest -s`. Oct 11: 20/20 pairs found, 0 false matches, min 8 votes
+(~2.5 min, mostly downloading). Wheel builds (`uv build --wheel`). Not done: cibuildwheel, PyPI, speed/memory
+benchmark on the full stock shards, each-pair-once. Dropped: reports, evidence, SSCD, store/SQLite/FAISS,
+Bluesky ingest, eval/Modal scripts, minidedup.
+
+Old layout (on `restart`):
 
 ```
 packages/core/         dataclasses only: Video, Frame, Hit, Match

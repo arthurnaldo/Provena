@@ -1,0 +1,23 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind>=2.4"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "provena-audit"
+version = "0.1.0"
+description = "Find duplicate footage in a video library. Only small fingerprints leave your machines."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pdqhash", "fsspec"]
+
+[project.optional-dependencies]
+cloud = ["s3fs", "gcsfs"]
+
+[project.scripts]
+provena-audit = "provena_audit.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "remotezip"]
+
+[tool.scikit-build]
+wheel.packages = ["src/provena_audit"]
