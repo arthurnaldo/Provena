@@ -68,6 +68,13 @@ Fingerprinting decodes in-process with PyAV (Oct 11): frame picking copies ffmpe
 last frame per slot, gaps repeat, video ends one frame after its last frame), so hashes are identical to
 `ffmpeg -vf fps=4` (51/51 videos, same counts/hashes/quality). 2.5x faster on 3 s clips (no process startup),
 ~1.07x on long videos. No ffmpeg install needed. Grayscale was tried: only ~80% identical, barely faster; dropped.
+OpenVid fingerprinting runner (Oct 11): scripts/openvid_fingerprint.py (zip fetched as 8 parallel 64 MB range
+requests, read in order with stream-unzip, clips fingerprinted by a process pool, provena-audit shards with clip names
+as IDs, resumable) + scripts/modal_openvid.py (one machine per zip, volume provena-openvid, /vol/openvid_send).
+Measured on Modal, 3,000 mixkit clips (2.24 h, ~10 GB) per test: 16 CPU 17.5 clips/s; 8 CPU 20.4/s; 4 CPU 18.5/s
+(workers limit ~40% of the time). Each machine tops out at ~50-70 MB/s (16 connections no faster than 8).
+4 CPU ~= 48 h of footage per machine-hour, ~$0.005/h of footage (rough Modal rates) vs ~$0.10/h for the old GPU+SSCD
+run (~20x cheaper); all of OpenVid-1M ~$10, ~15 min if ~200 machines run at once (max_containers is 10 now).
 Not done: cibuildwheel, PyPI, --part/--of for the audit + combine + Modal script. Dropped: reports, evidence, SSCD,
 store/SQLite/FAISS, Bluesky ingest, eval/Modal scripts, minidedup.
 
