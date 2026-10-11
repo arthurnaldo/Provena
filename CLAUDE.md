@@ -64,6 +64,10 @@ Each pair once (Oct 11): A only vs later videos; candidates need min_votes-4 A f
 frames on both sides, first copy kept if either side >= min, repeats must pass on A's frames. 10% slice: 9.3 s vs
 20 s (2.15x), 10,216 vs 10,305 pairs (-0.9%, 9 of them old-audit pairs); OpenVid test 20/20. Wheel builds
 (`uv build --wheel`). Next speed-ups: tighter inner loop (~1.5x), 1/s queries (~4x, changes results).
+Fingerprinting decodes in-process with PyAV (Oct 11): frame picking copies ffmpeg's fps filter (slot round(t*4),
+last frame per slot, gaps repeat, video ends one frame after its last frame), so hashes are identical to
+`ffmpeg -vf fps=4` (51/51 videos, same counts/hashes/quality). 2.5x faster on 3 s clips (no process startup),
+~1.07x on long videos. No ffmpeg install needed. Grayscale was tried: only ~80% identical, barely faster; dropped.
 Not done: cibuildwheel, PyPI, --part/--of for the audit + combine + Modal script. Dropped: reports, evidence, SSCD,
 store/SQLite/FAISS, Bluesky ingest, eval/Modal scripts, minidedup.
 

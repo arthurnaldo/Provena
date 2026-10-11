@@ -6,12 +6,12 @@
 """
 
 import hashlib
-import json
+import math
 import multiprocessing
 import secrets
-import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+import av
 import numpy as np
 import pdqhash
 
@@ -23,32 +23,42 @@ SHARD_SIZE = 200
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".mpg", ".mpeg", ".wmv", ".flv", ".ts", ".mts"}
 
 
-def _probe(path) -> tuple[int, int, float | None]:
-    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                          "stream=width,height:format=duration", "-of", "json", str(path)],
-                         capture_output=True, check=True).stdout
-    info = json.loads(out)
-    s = info["streams"][0]
-    duration = info.get("format", {}).get("duration")
-    return s["width"], s["height"], float(duration) if duration else None
-
-
 def fingerprint_file(path) -> dict:
-    """PDQ hash + quality of a full-size frame every 0.25 s, streamed so long videos don't fill memory.
+    """PDQ hash + quality of a full-size frame every 0.25 s, decoded in-process (PyAV) and streamed.
 
+    Frames are picked like ffmpeg's fps filter: a frame at time t goes to slot round(t * 4), the last frame in
+    a slot is used, a skipped slot repeats the previous frame and the video ends one frame after its last frame,
+    so hashes match `ffmpeg -vf fps=4` exactly.
     PDQ must see the full-size frame: on a pre-shrunk frame it differs from standard PDQ by ~20 bits.
     """
-    w, h, duration = _probe(path)
-    proc = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-i", str(path), "-vf", f"fps={FPS}",
-                             "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"],
-                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     hashes, quality = [], []
-    while len(buf := proc.stdout.read(w * h * 3)) == w * h * 3:
-        bits, q = pdqhash.compute(np.frombuffer(buf, np.uint8).reshape(h, w, 3))
-        hashes.append(np.packbits(bits.astype(np.uint8)))
-        quality.append(q)
-    if proc.wait() or not hashes:
-        raise RuntimeError("ffmpeg could not decode the video")
+    with av.open(str(path)) as container:
+        stream = container.streams.video[0]
+        stream.thread_type = "AUTO"
+        start = float((stream.start_time or 0) * stream.time_base)
+        pending, slot, last_t = None, 0, 0.0
+        frame_time = 1 / float(stream.average_rate or 30)
+
+        def emit(frame, copies):
+            bits, q = pdqhash.compute(frame.to_ndarray(format="rgb24"))
+            hashes.extend([np.packbits(bits.astype(np.uint8))] * copies)
+            quality.extend([q] * copies)
+
+        for frame in container.decode(stream):
+            if frame.pts is None:
+                continue
+            last_t = float(frame.pts * stream.time_base) - start
+            s = math.floor(last_t * FPS + 0.5)
+            if pending is not None and s > slot:
+                emit(pending, s - slot)
+            if pending is None or s >= slot:
+                pending, slot = frame, max(s, slot)
+        if pending is not None:  # like ffmpeg: the video ends one frame after its last frame
+            end = math.floor((last_t + frame_time) * FPS + 0.5)
+            emit(pending, max(end - slot, 0 if hashes else 1))
+        duration = container.duration / av.time_base if container.duration else None
+    if not hashes:
+        raise RuntimeError("no frames decoded")
     return {"pdq": np.stack(hashes), "quality": np.array(quality, np.uint8),
             "duration": duration or len(hashes) / FPS, "fps": FPS}
 

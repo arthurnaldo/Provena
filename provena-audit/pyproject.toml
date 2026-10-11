@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Find duplicate footage in a video library. Only small fingerprints leave your machines."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["numpy", "pdqhash", "fsspec"]
+dependencies = ["av", "numpy", "pdqhash", "fsspec"]
 
 [project.optional-dependencies]
 cloud = ["s3fs", "gcsfs"]
