@@ -42,7 +42,24 @@ src/provena_audit/
 tests/test_openvid.py + pairs.csv   downloads 20 known OpenVid pairs (10 hidden, 10 listed twice)
 ```
 Run: `cd provena-audit && uv sync && uv run pytest -s`. Oct 11: 20/20 pairs found, 0 false matches, min 8 votes
-(~2.5 min, mostly downloading). Wheel builds (`uv build --wheel`). Not done: cibuildwheel, PyPI, speed/memory
+(~2.5 min, mostly downloading).
+**Full stock run (Oct 11, Mac, 10 cores, min 8, both directions):** 359,513 clips / 3.92M frames in 1,975 s (33 min),
+peak 1.87 GB (incl. loading). 1.10M pairs; vs old audit_pairs.csv PDQ >= 8: 329,841 both, 13,378 old only (96.1%
+kept; the losses had 8-15 old votes = double-count inflation), 771,490 new only, of which 647k are segments of the
+same listing (old audit never compared those) and 124k cross-listing (no top-100 cap). 10% slice (36k clips): 20 s,
+0.66 GB; min 6 keeps 99.3% of old pairs, min 7 97.7%. Eye check (thumbnails, not aligned): new different-ID pairs at
+8 votes 8/10 same footage (incl. 1 recolour), 1 template variant, 1 same-shoot-different-moment; min-6-only new
+pairs weak (1 copy, 1 likely not, 3 unclear); old pairs recovered at 6: 5/5 copies. Default stays 8 until a
+static-footage / clear-winner check exists. Head-to-head on the same 10% slice (Mac): old FAISS top-100 + numpy
+vote_pairs 38.5 s, peak 1.06 GB (0.55 GB of it loading; held 1.9M frame matches); new kernel 20 s, 0.66 GB, so
+~1.9x faster with ~5x less working memory at this size (old list grows with matches, new doesn't).
+**Full-size aligned check of new different-ID pairs (Oct 11):** of 15, ~8 literally the same footage; 4 same tripod
+view at a different moment (ship/person/waves differ); 3 variants of one AI-made scene (birds/fog differ). All are
+~3 s clips (11 frames max, so 11 votes = every frame). Aligned PDQ distances don't separate them: new "different
+moment" 16-30, "copies" 20-35, and pairs the old audit also found (incl. the 60/60-type) 0-30. **Decision (user):
+these are redundant for training data and count.** The tool finds duplicate or near-duplicate (redundant) footage;
+say that, not "the same footage". The top-100 cap was hiding many of these. An exact-vs-near label is optional.
+Side-by-side videos were made in the session scratchpad only (not kept). Next speed-ups: each pair once (~2x), 1/s queries (~4x), tighter loop. Wheel builds (`uv build --wheel`). Not done: cibuildwheel, PyPI, speed/memory
 benchmark on the full stock shards, each-pair-once. Dropped: reports, evidence, SSCD, store/SQLite/FAISS,
 Bluesky ingest, eval/Modal scripts, minidedup.
 
