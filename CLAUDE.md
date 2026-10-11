@@ -59,11 +59,13 @@ view at a different moment (ship/person/waves differ); 3 variants of one AI-made
 moment" 16-30, "copies" 20-35, and pairs the old audit also found (incl. the 60/60-type) 0-30. **Decision (user):
 these are redundant for training data and count.** The tool finds duplicate or near-duplicate (redundant) footage;
 say that, not "the same footage". The top-100 cap was hiding many of these. An exact-vs-near label is optional.
-Side-by-side videos were made in the session scratchpad only (not kept). Next speed-ups: each pair once (~2x), 1/s queries (~4x), tighter loop. Wheel builds (`uv build --wheel`). Each pair once (Oct 11): A only vs later videos; candidates need
-min_votes-4 A frames; support() counts distinct frames on both sides, first copy kept if either side >= min,
-repeats must pass on A's frames. 10% slice: 9.3 s vs 20 s (2.15x), 10,216 vs 10,305 pairs (-0.9%, 9 of them old-audit
-pairs); OpenVid test 20/20. Not done: cibuildwheel, PyPI, --part/--of for the audit + combine + Modal script. Dropped: reports, evidence, SSCD, store/SQLite/FAISS,
-Bluesky ingest, eval/Modal scripts, minidedup.
+Side-by-side videos were made in the session scratchpad only (not kept).
+Each pair once (Oct 11): A only vs later videos; candidates need min_votes-4 A frames; support() counts distinct
+frames on both sides, first copy kept if either side >= min, repeats must pass on A's frames. 10% slice: 9.3 s vs
+20 s (2.15x), 10,216 vs 10,305 pairs (-0.9%, 9 of them old-audit pairs); OpenVid test 20/20. Wheel builds
+(`uv build --wheel`). Next speed-ups: tighter inner loop (~1.5x), 1/s queries (~4x, changes results).
+Not done: cibuildwheel, PyPI, --part/--of for the audit + combine + Modal script. Dropped: reports, evidence, SSCD,
+store/SQLite/FAISS, Bluesky ingest, eval/Modal scripts, minidedup.
 
 Old layout (on `restart`):
 
