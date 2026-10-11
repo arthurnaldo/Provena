@@ -147,7 +147,7 @@ using Floats = nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::
 using Out = std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int>, std::vector<double>,
                        std::vector<double>, std::vector<double>, std::vector<double>, std::vector<double>>;
 
-Out find_pairs(Hashes pdq, Ints video, Floats offset, int radius, int min_votes, int threads) {
+Out find_pairs(Hashes pdq, Ints video, Floats offset, int radius, int min_votes, int threads, int part, int of) {
     Data d{pdq.data(), video.data(), offset.data(), {}, radius, min_votes};
     size_t n = video.shape(0);
     std::vector<Row> rows;
@@ -164,7 +164,8 @@ Out find_pairs(Hashes pdq, Ints video, Floats offset, int radius, int min_votes,
             std::vector<std::thread> pool;
             for (auto& mine : found)
                 pool.emplace_back([&] {
-                    for (size_t c; (c = next++) + 1 < chunks.size();)
+                    // Machine `part` of `of` queries chunks part, part + of, part + 2 * of, ...
+                    for (size_t c; (c = part + of * next++) + 1 < chunks.size();)
                         query_chunk(d, chunks[c], chunks[c + 1], blocks, mine);
                 });
             for (auto& t : pool) t.join();
@@ -184,6 +185,6 @@ Out find_pairs(Hashes pdq, Ints video, Floats offset, int radius, int min_votes,
 
 NB_MODULE(_kernel, m) {
     m.def("find_pairs", &find_pairs, nb::arg("pdq"), nb::arg("video"), nb::arg("offset"), nb::arg("radius"),
-          nb::arg("min_votes"), nb::arg("threads"),
+          nb::arg("min_votes"), nb::arg("threads"), nb::arg("part") = 0, nb::arg("of") = 1,
           "Matched (a, b, votes, shift, a_start, a_end, b_start, b_end) with a < b, each pair searched once.");
 }

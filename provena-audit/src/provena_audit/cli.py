@@ -5,6 +5,8 @@ Customer:
     provena-audit fingerprint s3://lib/videos --send s3://lib/send --private s3://lib/private --part 3 --of 50
 Us:
     provena-audit audit provena_send/               # -> pairs.csv
+    provena-audit audit provena_send/ --part 0 --of 10 --out pairs_0.csv    # one of 10 machines
+    provena-audit combine provena_send/ pairs_*.csv # join the parts -> pairs.csv
 """
 
 import argparse
@@ -27,16 +29,26 @@ def main() -> None:
     a.add_argument("send")
     a.add_argument("--out", default="pairs.csv")
     a.add_argument("--min-votes", type=int, default=8)
+    a.add_argument("--part", type=int, default=0, help="this machine's index, 0-based")
+    a.add_argument("--of", type=int, default=1, help="number of machines")
+
+    c = sub.add_parser("combine", help="join the part files of a split audit")
+    c.add_argument("send")
+    c.add_argument("parts", nargs="+")
+    c.add_argument("--out", default="pairs.csv")
 
     args = p.parse_args()
+    if args.cmd in ("fingerprint", "audit") and not 0 <= args.part < args.of:
+        p.error(f"--part must be in 0..{args.of - 1}")
     if args.cmd == "fingerprint":
-        if not 0 <= args.part < args.of:
-            p.error(f"--part must be in 0..{args.of - 1}")
         from provena_audit.fingerprint import fingerprint_folder
         fingerprint_folder(args.source, args.send, args.private, args.part, args.of, args.workers)
-    else:
+    elif args.cmd == "audit":
         from provena_audit.audit import run_audit
-        run_audit(args.send, args.out, args.min_votes)
+        run_audit(args.send, args.out, args.min_votes, args.part, args.of)
+    else:
+        from provena_audit.audit import combine
+        combine(args.send, args.parts, args.out)
 
 
 if __name__ == "__main__":

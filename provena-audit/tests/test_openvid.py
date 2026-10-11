@@ -1,6 +1,7 @@
-"""End to end on OpenVid-1M: download 20 known duplicate pairs (10 hidden, 10 listed twice), fingerprint, audit.
+"""End to end on OpenVid-1M: download 20 known duplicate pairs (10 hidden, 10 listed twice), fingerprint, audit
+(whole, and split over 3 parts + combine).
 
-Needs internet (clips are pulled from Hugging Face with range requests) and ffmpeg.
+Needs internet (clips are pulled from Hugging Face with range requests).
 """
 
 import csv
@@ -9,7 +10,7 @@ from pathlib import Path
 from remotezip import RemoteZip
 
 from provena_audit import shards
-from provena_audit.audit import run_audit
+from provena_audit.audit import combine, run_audit
 from provena_audit.fingerprint import fingerprint_folder
 from provena_audit.storage import Location
 
@@ -27,7 +28,15 @@ def test_openvid(tmp_path):
 
     send, private = tmp_path / "send", tmp_path / "private"
     fingerprint_folder(str(videos), str(send), str(private))
-    run_audit(str(send), str(tmp_path / "pairs.csv"))
+    whole = run_audit(str(send), str(tmp_path / "pairs.csv"))
+
+    # The same audit split over 3 "machines" and combined gives the same pairs and summary.
+    parts = [str(tmp_path / f"pairs_{i}.csv") for i in range(3)]
+    for i, path in enumerate(parts):
+        run_audit(str(send), path, part=i, of=3)
+    assert combine(str(send), parts, str(tmp_path / "combined.csv")) == whole
+    rows = lambda p: sorted(csv.reader(open(p)))  # noqa: E731
+    assert rows(tmp_path / "combined.csv") == rows(tmp_path / "pairs.csv")
 
     name = dict(shards.read_names(Location(private)))
     found = {frozenset((name[r["a"]], name[r["b"]])) for r in csv.DictReader(open(tmp_path / "pairs.csv"))}

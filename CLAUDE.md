@@ -75,7 +75,10 @@ Measured on Modal, 3,000 mixkit clips (2.24 h, ~10 GB) per test: 16 CPU 17.5 cli
 (workers limit ~40% of the time). Each machine tops out at ~50-70 MB/s (16 connections no faster than 8).
 4 CPU ~= 48 h of footage per machine-hour, ~$0.005/h of footage (rough Modal rates) vs ~$0.10/h for the old GPU+SSCD
 run (~20x cheaper); all of OpenVid-1M ~$10, ~15 min if ~200 machines run at once (max_containers is 10 now).
-Not done: cibuildwheel, PyPI, --part/--of for the audit + combine + Modal script. Dropped: reports, evidence, SSCD,
+Split audit (Oct 11): `audit --part i --of N` (machine i queries chunks i, i+N, ...; every machine loads all
+fingerprints) writes a part file; `combine send/ pairs_*.csv` joins them and prints the summary. 10% stock slice:
+3 and 7 parts give the same 10,288 rows as one run; OpenVid test also checks 3 parts + combine == one run.
+Not done: cibuildwheel, PyPI, Modal audit script, two-half OpenVid zips in the runner. Dropped: reports, evidence, SSCD,
 store/SQLite/FAISS, Bluesky ingest, eval/Modal scripts, minidedup.
 
 Old layout (on `restart`):
