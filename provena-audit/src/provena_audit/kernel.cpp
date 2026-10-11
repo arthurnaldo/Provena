@@ -6,6 +6,10 @@
 // distinct A frames whose shift is within about a second of it. No top-k cap and no list of matches.
 // Every bin with >= min_votes is a copy, best first, blocking bins within ±2 of an accepted one (one copy
 // spreads over ~4 bins), so a clip used twice in B gives two rows.
+//
+// Each pair is searched once: A only against later videos. The vote counts A's frames; B's count can differ
+// (one A frame can match several B frames in static footage), so bins within SLACK of min_votes are re-counted
+// on both sides in `support`; a pair's first copy is kept if either side reaches min_votes.
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -28,6 +32,7 @@ namespace {
 
 constexpr size_t BLOCK = 4096;  // stored frames per pass (whole videos), stays in cache
 constexpr size_t CHUNK = 512;   // query frames per pass (whole videos)
+constexpr int SLACK = 4;        // candidate bins need min_votes - SLACK of A's frames
 
 struct Bin {
     int votes = 0, own = 0;            // own: votes whose shift rounds to this bin (tie-break)
@@ -36,7 +41,7 @@ struct Bin {
 
 struct Row {
     int64_t a, b;
-    int votes;
+    int votes, a_votes;  // votes: distinct frames on the side with more; a_votes: A's side
     double shift, a_start, a_end, b_start, b_end;
 };
 
@@ -66,19 +71,28 @@ std::vector<size_t> groups(const Data& d, size_t size) {
     return out;
 }
 
-// Matched stretch and median shift of one accepted bin, from all matches within ±1 bin of it.
-Row support(const Data& d, int64_t a, int64_t b, int bin, int votes) {
+// Votes (distinct frames on the side with more), matched stretch and median shift of one bin, from all matches
+// within ±1 bin of it.
+Row support(const Data& d, int64_t a, int64_t b, int bin) {
     std::vector<double> shifts;
-    Row r{a, b, votes, 0, 1e300, -1e300, 1e300, -1e300};
-    for (size_t f = d.start[a]; f < d.start[a + 1]; ++f)
+    std::vector<char> b_seen(d.start[b + 1] - d.start[b], 0);
+    int a_frames = 0, b_frames = 0;
+    Row r{a, b, 0, 0, 0, 1e300, -1e300, 1e300, -1e300};
+    for (size_t f = d.start[a]; f < d.start[a + 1]; ++f) {
+        bool a_seen = false;
         for (size_t g = d.start[b]; g < d.start[b + 1]; ++g) {
             if (distance(d.pdq + 4 * f, d.pdq + 4 * g) > d.radius) continue;
             double s = d.offset[g] - d.offset[f];
             if (std::abs(bucket(s) - bin) > 1) continue;
+            if (!a_seen) { a_seen = true; ++a_frames; }
+            if (!b_seen[g - d.start[b]]) { b_seen[g - d.start[b]] = 1; ++b_frames; }
             shifts.push_back(s);
             r.a_start = std::min(r.a_start, d.offset[f]); r.a_end = std::max(r.a_end, d.offset[f]);
             r.b_start = std::min(r.b_start, d.offset[g]); r.b_end = std::max(r.b_end, d.offset[g]);
         }
+    }
+    r.votes = std::max(a_frames, b_frames);
+    r.a_votes = a_frames;
     std::sort(shifts.begin(), shifts.end());
     size_t n = shifts.size();
     r.shift = (shifts[(n - 1) / 2] + shifts[n / 2]) / 2;
@@ -95,8 +109,8 @@ void query_chunk(const Data& d, size_t v0, size_t v1, const std::vector<size_t>&
             const uint64_t* q = d.pdq + 4 * f;
             int64_t a = d.video[f];
             auto& board = boards[a - v0];
-            for (size_t g = g0; g < g1; ++g) {
-                if (distance(q, d.pdq + 4 * g) > d.radius || d.video[g] == a) continue;
+            for (size_t g = std::max(g0, d.start[a + 1]); g < g1; ++g) {  // later videos only
+                if (distance(q, d.pdq + 4 * g) > d.radius) continue;
                 int bin = bucket(d.offset[g] - d.offset[f]);
                 for (int n = bin - 1; n <= bin + 1; ++n) {
                     Bin& x = board[key(d.video[g], n)];
@@ -110,15 +124,19 @@ void query_chunk(const Data& d, size_t v0, size_t v1, const std::vector<size_t>&
     for (size_t a = v0; a < v1; ++a) {
         std::vector<std::tuple<int64_t, int, int, int>> cand;  // (b, -votes, -own, bin)
         for (auto& [k, x] : boards[a - v0])
-            if (x.votes >= d.min_votes) cand.emplace_back((int64_t)(k >> 32), -x.votes, -x.own, (int)(uint32_t)k);
+            if (x.votes >= d.min_votes - SLACK) cand.emplace_back((int64_t)(k >> 32), -x.votes, -x.own, (int)(uint32_t)k);
         std::sort(cand.begin(), cand.end());
         std::vector<int> accepted;
         int64_t current = -1;
         for (auto& [b, votes, own, bin] : cand) {
             if (b != current) { current = b; accepted.clear(); }
             if (std::any_of(accepted.begin(), accepted.end(), [&](int s) { return std::abs(s - bin) <= 2; })) continue;
+            // B's count may rescue a pair's first copy; a further copy (a repeat) must pass on A's frames,
+            // otherwise static footage turns one copy into several.
+            Row r = support(d, a, b, bin);
+            if ((accepted.empty() ? r.votes : r.a_votes) < d.min_votes) continue;
             accepted.push_back(bin);
-            out.push_back(support(d, a, b, bin, -votes));
+            out.push_back(r);
         }
     }
 }
@@ -167,5 +185,5 @@ Out find_pairs(Hashes pdq, Ints video, Floats offset, int radius, int min_votes,
 NB_MODULE(_kernel, m) {
     m.def("find_pairs", &find_pairs, nb::arg("pdq"), nb::arg("video"), nb::arg("offset"), nb::arg("radius"),
           nb::arg("min_votes"), nb::arg("threads"),
-          "Matched (a, b, votes, shift, a_start, a_end, b_start, b_end), every pair searched from both sides.");
+          "Matched (a, b, votes, shift, a_start, a_end, b_start, b_end) with a < b, each pair searched once.");
 }

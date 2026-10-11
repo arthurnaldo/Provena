@@ -25,22 +25,9 @@ def find_pairs(data: dict, min_votes: int = 8, radius: int = 31) -> list[dict]:
     out = _kernel.find_pairs(np.ascontiguousarray(data["pdq"][rows]).view(np.uint64), video.astype(np.int64),
                              data["offset"][rows].astype(np.float64), radius, min_votes, os.cpu_count() or 1)
     found = [dict(zip(FIELDS, r)) for r in zip(*out)]
-    for r in found:
+    for r in found:  # owners is sorted, so a < b stays a < b
         r["a"], r["b"] = int(owners[r["a"]]), int(owners[r["b"]])
-
-    # Every pair is searched from both sides; keep the side with more votes, oriented a < b.
-    total: dict[tuple[int, int], int] = {}
-    for r in found:
-        total[r["a"], r["b"]] = total.get((r["a"], r["b"]), 0) + r["votes"]
-    keep = []
-    for r in found:
-        a, b = r["a"], r["b"]
-        if a < b and total[a, b] >= total.get((b, a), 0):
-            keep.append(r)
-        elif a > b and total[a, b] > total.get((b, a), 0):
-            keep.append({"a": b, "b": a, "votes": r["votes"], "shift": -r["shift"], "a_start": r["b_start"],
-                         "a_end": r["b_end"], "b_start": r["a_start"], "b_end": r["a_end"]})
-    return keep
+    return found
 
 
 def _merged_length(intervals: list[tuple[float, float]]) -> float:
