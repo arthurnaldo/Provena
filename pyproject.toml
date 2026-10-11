@@ -2,12 +2,13 @@
 name = "provena"
 version = "0.0.0"
 requires-python = ">=3.11"
-dependencies = ["core", "fingerprint", "ingest", "matcher", "store"]
+dependencies = ["audit", "core", "fingerprint[vpdq]", "ingest", "matcher", "store"]
 
 [dependency-groups]
-dev = ["pytest"]
+dev = ["pytest", "remotezip", "requests", "stream-unzip"]
 
 [tool.uv.sources]
+audit = { workspace = true }
 core = { workspace = true }
 fingerprint = { workspace = true }
 ingest = { workspace = true }
@@ -15,4 +16,4 @@ matcher = { workspace = true }
 store = { workspace = true }
 
 [tool.uv.workspace]
-members = ["packages/core", "packages/fingerprint", "packages/matcher", "packages/store", "services/ingest"]
+members = ["packages/core", "packages/fingerprint", "packages/matcher", "packages/store", "services/audit", "services/ingest"]

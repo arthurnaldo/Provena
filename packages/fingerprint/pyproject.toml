@@ -3,7 +3,10 @@ name = "fingerprint"
 version = "0.0.0"
 description = "Video → frame fingerprints. No databases, networks, or platforms."
 requires-python = ">=3.11"
-dependencies = ["core", "vpdq"]
+dependencies = ["core", "numpy", "pdqhash"]
+
+[project.optional-dependencies]
+vpdq = ["vpdq"]  # fingerprint_video only; builds from source against ffmpeg
 
 [tool.uv.sources]
 core = { workspace = true }

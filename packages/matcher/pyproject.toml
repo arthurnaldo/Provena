@@ -3,7 +3,7 @@ name = "matcher"
 version = "0.0.0"
 description = "Hits in, matches out. Pure logic."
 requires-python = ">=3.11"
-dependencies = ["core"]
+dependencies = ["core", "numpy"]
 
 [tool.uv.sources]
 core = { workspace = true }

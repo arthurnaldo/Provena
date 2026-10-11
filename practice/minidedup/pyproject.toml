@@ -1,0 +1,14 @@
+[project]
+name = "minidedup"
+version = "0.1.0"
+description = "Find videos in a folder that share footage (teaching version of provena-audit)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pdqhash"]
+
+[project.scripts]
+minidedup = "minidedup.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

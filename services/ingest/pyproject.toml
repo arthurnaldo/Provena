@@ -3,7 +3,7 @@ name = "ingest"
 version = "0.0.0"
 description = "Platform connectors: fetch posts, fingerprint videos, write to store."
 requires-python = ">=3.11"
-dependencies = ["core", "fingerprint", "store"]
+dependencies = ["core", "fingerprint[vpdq]", "store"]
 
 [tool.uv.sources]
 core = { workspace = true }
