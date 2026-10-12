@@ -5,9 +5,21 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "provena-audit"
 version = "0.1.0"
-description = "Find duplicate footage in a video library. Only small fingerprints leave your machines."
+description = "Find duplicate and near-duplicate footage in a video library. Only small fingerprints leave your machines."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
+keywords = ["video", "deduplication", "fingerprint", "pdq", "near-duplicate", "dataset"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = ["av", "numpy", "pdqhash", "fsspec"]
 
 [project.optional-dependencies]
@@ -21,3 +33,5 @@ dev = ["pytest", "remotezip"]
 
 [tool.scikit-build]
 wheel.packages = ["src/provena_audit"]
+wheel.exclude = ["provena_audit/kernel.cpp"]
+sdist.exclude = ["tests", "uv.lock"]
