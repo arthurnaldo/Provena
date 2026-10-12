@@ -37,6 +37,13 @@ provena-audit combine provena_send/ pairs_*.csv                           # join
 
 Fingerprinting resumes where it stopped; split audits give exactly the same pairs as one run.
 
+Where does a clip appear? Search one or more clips against a fingerprint folder (the index loads once; each search
+takes well under a second on a laptop for ~1M indexed clips):
+
+```
+provena-audit lookup clip.mp4 other.mp4 --index provena_send/ --private provena_private/
+```
+
 ## How it works
 
 1. A PDQ hash (Meta's open perceptual hash) of the full-size frame every 0.25 s.

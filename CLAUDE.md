@@ -96,7 +96,14 @@ Spot prices us-east-1: g4dn.xlarge (T4) ~$0.30/h, g6.xlarge (L4) ~$0.56/h. Measu
 Split audit (Oct 11): `audit --part i --of N` (machine i queries chunks i, i+N, ...; every machine loads all
 fingerprints) writes a part file; `combine send/ pairs_*.csv` joins them and prints the summary. 10% stock slice:
 3 and 7 parts give the same 10,288 rows as one run; OpenVid test also checks 3 parts + combine == one run.
-Not done: cibuildwheel, PyPI, Modal audit script, two-half OpenVid zips in the runner. Dropped: reports, evidence, SSCD,
+Lookup (Oct 12): kernel `lookup` searches only a clip's frames against an index (threads take blocks of whole
+index videos, separate scoreboards); kernel refactored so audit and lookup share vote/pick/support (audit output
+unchanged: 10% slice still 10,288 rows). `Index(send).search(clip)` + `provena-audit lookup`. Against all of
+OpenVid-1M on the Mac: ~0.3-0.6 s per search incl. fingerprinting the clip (old first-chunk shortcut ~13 s), same
+hits. Edited-clip test (10 random clips): trim 8-9/10, half size+crf35 9/10, caption bar 7/10, mirrored 0/10,
+unrelated videos 0 false matches; min 5 vs 8 votes barely differs (misses are flat stock clips and mirrors).
+Packaging: MIT, macOS 11+ arm64 wheels cp311-cp314 + sdist built and tested in clean venvs; TestPyPI upload pending
+(user's token). Not done: Linux/Windows wheels (cibuildwheel), real PyPI, mirror (pdq_dihedral) query flips, SSCD. Dropped: reports, evidence, SSCD,
 store/SQLite/FAISS, Bluesky ingest, eval/Modal scripts, minidedup.
 
 Old layout (on `restart`):

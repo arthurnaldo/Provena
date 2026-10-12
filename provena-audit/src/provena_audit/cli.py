@@ -7,6 +7,7 @@ Us:
     provena-audit audit provena_send/               # -> pairs.csv
     provena-audit audit provena_send/ --part 0 --of 10 --out pairs_0.csv    # one of 10 machines
     provena-audit combine provena_send/ pairs_*.csv # join the parts -> pairs.csv
+    provena-audit lookup clip.mp4 --index provena_send/   # where does this clip appear?
 """
 
 import argparse
@@ -37,6 +38,12 @@ def main() -> None:
     c.add_argument("parts", nargs="+")
     c.add_argument("--out", default="pairs.csv")
 
+    lk = sub.add_parser("lookup", help="find where one or more clips appear in a fingerprint folder")
+    lk.add_argument("clips", nargs="+")
+    lk.add_argument("--index", required=True, help="fingerprint folder to search (send/)")
+    lk.add_argument("--private", default=None, help="names folder of the index, to print file names")
+    lk.add_argument("--min-votes", type=int, default=8)
+
     args = p.parse_args()
     if args.cmd in ("fingerprint", "audit") and not 0 <= args.part < args.of:
         p.error(f"--part must be in 0..{args.of - 1}")
@@ -46,9 +53,21 @@ def main() -> None:
     elif args.cmd == "audit":
         from provena_audit.audit import run_audit
         run_audit(args.send, args.out, args.min_votes, args.part, args.of)
-    else:
+    elif args.cmd == "combine":
         from provena_audit.audit import combine
         combine(args.send, args.parts, args.out)
+    else:
+        from provena_audit import shards
+        from provena_audit.audit import Index
+        from provena_audit.storage import Location
+        index = Index(args.index)
+        names = dict(shards.read_names(Location(args.private))) if args.private else {}
+        for clip in args.clips:
+            hits = index.search(clip, args.min_votes)
+            print(f"{clip}: {len(hits)} match{'es' if len(hits) != 1 else ''}")
+            for h in hits:
+                print(f"  {names.get(h['id'], h['id'])}  {h['b_start']:.2f}-{h['b_end']:.2f}s  "
+                      f"(clip {h['clip_start']:.2f}-{h['clip_end']:.2f}s, {h['votes']} votes)")
 
 
 if __name__ == "__main__":

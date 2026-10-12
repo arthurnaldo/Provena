@@ -88,3 +88,33 @@ def combine(send: str, parts: list[str], out: str = "pairs.csv") -> dict:
     _write(out, rows)
     data = shards.load(Location(send))
     return _summary(rows, data["ids"], data["durations"].astype(np.float64), out)
+
+
+class Index:
+    """Fingerprints loaded once and sorted for repeated single-clip lookups."""
+
+    def __init__(self, send: str):
+        data = shards.load(Location(send))
+        rows = np.nonzero(data["quality"] >= MIN_QUALITY)[0]
+        rows = rows[np.argsort(data["owner"][rows], kind="stable")]
+        self.owners, video = np.unique(data["owner"][rows], return_inverse=True)
+        self.pdq = np.ascontiguousarray(data["pdq"][rows]).view(np.uint64)
+        self.video = video.astype(np.int64)
+        self.offset = data["offset"][rows].astype(np.float64)
+        self.ids = data["ids"]
+
+    def search(self, clip, min_votes: int = 8, radius: int = 31) -> list[dict]:
+        """Copies of one video file in the index, best first: id, votes, shift and matched ranges (seconds)."""
+        from provena_audit.fingerprint import fingerprint_file
+        q = fingerprint_file(clip)
+        keep = q["quality"] >= MIN_QUALITY
+        offset = (np.arange(len(q["pdq"])) / q["fps"])[keep]
+        out = _kernel.lookup(self.pdq, self.video, self.offset, np.ascontiguousarray(q["pdq"][keep]).view(np.uint64),
+                             offset.astype(np.float64), radius, min_votes, os.cpu_count() or 1)
+        hits = [dict(zip(FIELDS, r)) for r in zip(*out)]
+        for h in hits:
+            h["id"] = str(self.ids[self.owners[h.pop("b")]])
+            h.pop("a")
+            h["clip_end"], h["b_end"] = h.pop("a_end") + 1 / FPS, h["b_end"] + 1 / FPS
+            h["clip_start"] = h.pop("a_start")
+        return sorted(hits, key=lambda h: -h["votes"])
