@@ -4,9 +4,12 @@
 #   scripts/aws_openvid.sh setup                 # bucket, machine role, upload the package + runner
 #   scripts/aws_openvid.sh launch N [ZIP ...]    # N spot machines share the zips (default: every zip not done)
 #   scripts/aws_openvid.sh status                # running machines, finished zips
+#   scripts/aws_openvid.sh audit N [PART ...]    # audit openvid_send on N machines (8 vCPU), all parts or the listed ones
 #
 # Each machine installs provena-audit, runs scripts/openvid_fingerprint.py on its zips (i, i+N, ...), writes
 # s3://BUCKET/done/<zip> after each one, uploads its log to s3://BUCKET/logs/ and terminates itself.
+# Audit machines copy every fingerprint, run `provena-audit audit --part i --of N`, upload openvid_audit/pairs_i.csv;
+# machine 0 then waits for all parts, runs `combine` and uploads openvid_audit/pairs.csv + summary.txt.
 # Run from the repo root.
 set -euo pipefail
 REGION=us-east-1
@@ -83,9 +86,54 @@ EOF
       --user-data "$USERDATA" --query "Instances[0].InstanceId" --output text
   done
   ;;
+audit)
+  N=$2; shift 2
+  PARTS=("$@"); [ ${#PARTS[@]} -eq 0 ] && PARTS=($(seq 0 $((N - 1))))
+  tar czf /tmp/provena-audit.tgz --exclude .venv --exclude build --exclude dist --exclude __pycache__ provena-audit
+  aws s3 cp /tmp/provena-audit.tgz "s3://$BUCKET/code/provena-audit.tgz" --quiet
+  AMI=$(aws ssm get-parameter --region $REGION --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 \
+        --query Parameter.Value --output text)
+  echo "audit parts ${PARTS[*]} of $N (${AUDIT_TYPE:=c7g.2xlarge} spot)"
+  for i in "${PARTS[@]}"; do
+    USERDATA=$(cat <<EOF
+#!/bin/bash
+exec > /var/log/audit.log 2>&1
+dnf install -y python3.12 python3.12-devel gcc-c++
+python3.12 -m venv /opt/v
+aws s3 cp s3://$BUCKET/code/provena-audit.tgz /tmp/ && tar xzf /tmp/provena-audit.tgz -C /tmp
+/opt/v/bin/pip install -q /tmp/provena-audit
+aws s3 sync s3://$BUCKET/openvid_send /data/send --quiet
+P=\$(printf %03d $i)
+/opt/v/bin/provena-audit audit /data/send --part $i --of $N --out /data/pairs_\$P.csv \
+  && aws s3 cp /data/pairs_\$P.csv s3://$BUCKET/openvid_audit/pairs_\$P.csv --quiet
+aws s3 cp /var/log/audit.log s3://$BUCKET/logs/audit_\$P.log --quiet
+if [ $i = 0 ]; then  # wait up to 12 h for every part, then combine
+  for t in \$(seq 720); do
+    [ \$(aws s3 ls s3://$BUCKET/openvid_audit/ | grep -c 'pairs_[0-9]') -ge $N ] && break
+    sleep 60
+  done
+  aws s3 sync s3://$BUCKET/openvid_audit /data/parts --exclude '*' --include 'pairs_[0-9]*' --quiet
+  /opt/v/bin/provena-audit combine /data/send /data/parts/pairs_[0-9]*.csv --out /data/pairs.csv > /data/summary.txt 2>&1
+  aws s3 cp /data/pairs.csv s3://$BUCKET/openvid_audit/pairs.csv --quiet
+  aws s3 cp /data/summary.txt s3://$BUCKET/openvid_audit/summary.txt --quiet
+  aws s3 cp /var/log/audit.log s3://$BUCKET/logs/audit_000.log --quiet
+fi
+shutdown -h now
+EOF
+)
+    aws ec2 run-instances --region $REGION --image-id "$AMI" --instance-type "$AUDIT_TYPE" \
+      --iam-instance-profile Name=$ROLE --instance-initiated-shutdown-behavior terminate \
+      --instance-market-options '{"MarketType":"spot"}' \
+      --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":30,"VolumeType":"gp3"}}]' \
+      --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=provena-audit}]' \
+      --user-data "$USERDATA" --query "Instances[0].InstanceId" --output text
+  done
+  ;;
 status)
-  aws ec2 describe-instances --region $REGION --filters Name=tag:Name,Values=provena-fp \
+  aws ec2 describe-instances --region $REGION --filters Name=tag:Name,Values=provena-fp,provena-audit \
     Name=instance-state-name,Values=pending,running --query "Reservations[].Instances[].[InstanceId,State.Name,LaunchTime]" --output text
   echo "zips done: $(aws s3 ls "s3://$BUCKET/done/" 2>/dev/null | wc -l | tr -d ' ')"
+  echo "audit parts: $(aws s3 ls "s3://$BUCKET/openvid_audit/" 2>/dev/null | grep -c 'pairs_[0-9]' || true)"
+  aws s3 cp "s3://$BUCKET/openvid_audit/summary.txt" - 2>/dev/null || true
   ;;
 esac

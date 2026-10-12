@@ -85,6 +85,11 @@ requested Oct 11 (case opened). AWS CLI logged in as the root user: create a lim
 Oct 11 17:18 PT: quota was already raised to 96 vCPUs; scripts/aws_wait_and_launch.sh launched 24 c7g.xlarge spot
 machines for all 186 zips -> s3://provena-openvid-696865460743/openvid_send (done markers in done/, logs in logs/).
 Expected ~3-4 h, ~$6. Check with `scripts/aws_openvid.sh status`; rerun `launch N` for any zips without a done marker.
+AWS audit: `scripts/aws_openvid.sh audit N [PART ...]` (c7g.2xlarge spot; each copies openvid_send, runs its part,
+uploads openvid_audit/pairs_i.csv; machine 0 waits for all parts, combines -> openvid_audit/pairs.csv + summary.txt;
+relaunch a lost part by number). scripts/aws_after_fp.sh (running in the background since Oct 11, log
+data/aws_after_fp.log) relaunches unfinished zips up to 2x, then starts the audit on quota/8 machines (12 at 96 vCPUs,
+est. ~3-4 h, ~$6). Not tested end to end yet; first real run is the OpenVid-1M audit.
 Split audit (Oct 11): `audit --part i --of N` (machine i queries chunks i, i+N, ...; every machine loads all
 fingerprints) writes a part file; `combine send/ pairs_*.csv` joins them and prints the summary. 10% stock slice:
 3 and 7 parts give the same 10,288 rows as one run; OpenVid test also checks 3 parts + combine == one run.
