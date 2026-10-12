@@ -14,7 +14,7 @@ export AWS_DEFAULT_REGION=$REGION
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 BUCKET=provena-openvid-$ACCOUNT
 ROLE=provena-ec2
-TYPE=${TYPE:-c7g.xlarge}
+TYPE=${TYPE:-c7g.2xlarge}
 PLAN=data/discovery/plan.txt
 
 case "$1" in

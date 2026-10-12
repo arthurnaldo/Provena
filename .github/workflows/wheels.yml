@@ -18,7 +18,7 @@ jobs:
           - {os: ubuntu-latest, arch: x86_64}
           - {os: ubuntu-latest, arch: aarch64}
           - {os: windows-latest, arch: AMD64}
-          - {os: macos-13, arch: x86_64}
+          - {os: macos-14, arch: x86_64}  # Intel wheel cross-built on Apple Silicon
           - {os: macos-14, arch: arm64}
     steps:
       - uses: actions/checkout@v4

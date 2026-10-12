@@ -51,7 +51,7 @@ def fetch(u: str, start: int, end: int) -> bytes:
     raise RuntimeError(f"gave up on {u} bytes {start}-{end}")
 
 
-def ranged_bytes(u: str, stats: dict, connections: int = 8):
+def ranged_bytes(u: str, stats: dict, connections: int = 4):
     """A remote file's bytes in order, several 64 MB range requests in flight."""
     size = int(requests.head(u, headers=HEADERS, allow_redirects=True, timeout=60).headers["Content-Length"])
     starts = iter(range(0, size, CHUNK))
@@ -184,7 +184,7 @@ def main() -> None:
                 for i in np.load(io.BytesIO(send.read_bytes(f)))["ids"]}
         shard_no, batch = shards.shard_count(send, tag), []
         results: queue.Queue = queue.Queue()
-        slots = threading.BoundedSemaphore(64)
+        slots = threading.BoundedSemaphore(2 * (args.workers or os.cpu_count() or 1))  # clips waiting on disk
         failed, stop = {}, threading.Event()
 
         def download(pool):
@@ -205,27 +205,33 @@ def main() -> None:
             finally:
                 results.put(None)
 
-        with ProcessPoolExecutor(args.workers) as pool:
-            threading.Thread(target=download, args=(pool,), daemon=True).start()
-            while (item := results.get()) is not None:
-                cid, fut = item
-                v = fut.result()
-                slots.release()
-                if isinstance(v, str):
-                    errors += 1
-                    continue
-                v["id"] = cid
-                batch.append(v)
-                written += 1
-                if len(batch) >= args.shard_size:
-                    shards.write_shard(send, tag, shard_no, batch)
-                    shard_no, batch = shard_no + 1, []
-                if args.limit and written >= args.limit:
-                    stop.set()
-                if written % 500 == 0:
-                    el = time.time() - start
-                    print(f"  {written:,} clips, {written / el:.1f}/s, {stats['bytes'] / el / 1e6:.0f} MB/s, "
-                          f"download waited on workers {stats['wait'] / el:.0%}, {errors} errors", flush=True)
+        try:
+            with ProcessPoolExecutor(args.workers) as pool:
+                threading.Thread(target=download, args=(pool,), daemon=True).start()
+                while (item := results.get()) is not None:
+                    cid, fut = item
+                    v = fut.result()
+                    slots.release()
+                    if isinstance(v, str):
+                        errors += 1
+                        continue
+                    v["id"] = cid
+                    batch.append(v)
+                    written += 1
+                    if len(batch) >= args.shard_size:
+                        shards.write_shard(send, tag, shard_no, batch)
+                        shard_no, batch = shard_no + 1, []
+                    if args.limit and written >= args.limit:
+                        stop.set()
+                    if written % 500 == 0:
+                        el = time.time() - start
+                        print(f"  {written:,} clips, {written / el:.1f}/s, {stats['bytes'] / el / 1e6:.0f} MB/s, "
+                              f"download waited on workers {stats['wait'] / el:.0%}, {errors} errors", flush=True)
+        except Exception as e:  # e.g. a worker killed for memory: save what we have, redo this file next run
+            stop.set()
+            failed["error"] = e
+            for f in tmp.iterdir():
+                f.unlink(missing_ok=True)
         if batch:
             shards.write_shard(send, tag, shard_no, batch)
         if "error" in failed:
