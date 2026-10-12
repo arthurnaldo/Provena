@@ -75,6 +75,13 @@ Measured on Modal, 3,000 mixkit clips (2.24 h, ~10 GB) per test: 16 CPU 17.5 cli
 (workers limit ~40% of the time). Each machine tops out at ~50-70 MB/s (16 connections no faster than 8).
 4 CPU ~= 48 h of footage per machine-hour, ~$0.005/h of footage (rough Modal rates) vs ~$0.10/h for the old GPU+SSCD
 run (~20x cheaper); all of OpenVid-1M ~$10, ~15 min if ~200 machines run at once (max_containers is 10 now).
+Full OpenVid-1M run on Modal (Oct 11, 100 machines): stopped by Modal's spend cap ($42.50/month, max settable $20 on
+this plan) after 12 zips fully done (154k clips, 0 errors, ~9-11 min/zip at 65-70 MB/s) and ~330 shards saved in
+volume provena-openvid:/openvid_send (resumable). AWS alternative (scripts/aws_openvid.sh: S3 bucket
+provena-openvid-696865460743, role provena-ec2, Graviton spot machines that install, fingerprint to S3, mark
+done/<zip>, terminate): tested on 3,000 clips, c7g.xlarge 8.6 clips/s (CPU-bound; Modal's 4 CPUs = ~8 vCPUs), spot
+~$0.07-0.08/h -> ~$0.003/h of footage (~1.6x cheaper than Modal). Account spot quota is 5 vCPUs; increase to 400
+requested Oct 11 (case opened). AWS CLI logged in as the root user: create a limited IAM user later.
 Split audit (Oct 11): `audit --part i --of N` (machine i queries chunks i, i+N, ...; every machine loads all
 fingerprints) writes a part file; `combine send/ pairs_*.csv` joins them and prints the summary. 10% stock slice:
 3 and 7 parts give the same 10,288 rows as one run; OpenVid test also checks 3 parts + combine == one run.
