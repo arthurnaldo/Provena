@@ -24,6 +24,7 @@ dependencies = ["av", "numpy", "pdqhash", "fsspec"]
 
 [project.optional-dependencies]
 cloud = ["s3fs", "gcsfs"]
+index = ["pyarrow"]  # dataset metadata (clips.parquet) in lookups
 
 [project.scripts]
 provena-audit = "provena_audit.cli:main"

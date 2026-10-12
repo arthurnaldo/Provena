@@ -349,6 +349,17 @@ duplicate rate: it includes different segments of one source and SSCD look-alike
   run that size: query at 1/s (stored stays 4/s; the Bluesky eval already queried at 1/s), fewer SSCD frames,
   `IndexBinaryMultiHash` for PDQ (exact, faster). A reverse lookup (one clip vs an index) stays cheap.
 
+### Lookup index with metadata (Oct 12 2026)
+Goal: a public page where people check whether their footage is in AI training datasets. Per dataset, a folder
+data/index/<dataset>/ with send/ (fingerprint shards; openvid-1m links to data/openvid_send), manifest.json
+(dataset, HF source + revision d8a63bd, stated licence, counts), clips.parquet (24 MB; one row per clip in shard load
+order: id, zip, source_platform, source_id, source_url, segment, duration) and captions.sqlite (~1 GB; OpenVid's CSV
+keyed by id). Built by scripts/openvid_metadata.py from the shards + OpenVid-1M.csv, no re-fingerprinting.
+`Index(*folders)` loads several datasets (metadata looked up only for hits; pyarrow = `[index]` extra) and
+`provena-audit lookup --index A B` labels hits by dataset. OpenVid-1M: load 4.9 s, search 0.46-0.88 s, hits carry
+licence, zip, YouTube/stock source URL. OpenVid names give the YouTube ID but not the exact time in the source video.
+Data/ is gitignored: back up data/index to S3 if needed.
+
 ### Full OpenVid-1M audit (Oct 11 2026, AWS, provena-audit C++ kernel, PDQ only, min 8 votes)
 Fingerprinting: 186 zips on 24 c7g.xlarge spot machines, ~4.4 h; audit: 37 c7g.2xlarge, ~1.2 h incl. setup; total
 roughly ~$10-12 (check the AWS bill). Files: data/openvid_send/ (1.3 GB shards, 1,069 files), data/openvid_audit/pairs.csv

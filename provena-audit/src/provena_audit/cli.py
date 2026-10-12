@@ -40,7 +40,7 @@ def main() -> None:
 
     lk = sub.add_parser("lookup", help="find where one or more clips appear in a fingerprint folder")
     lk.add_argument("clips", nargs="+")
-    lk.add_argument("--index", required=True, help="fingerprint folder to search (send/)")
+    lk.add_argument("--index", required=True, nargs="+", help="fingerprint or dataset folders to search")
     lk.add_argument("--private", default=None, help="names folder of the index, to print file names")
     lk.add_argument("--min-votes", type=int, default=8)
 
@@ -60,14 +60,15 @@ def main() -> None:
         from provena_audit import shards
         from provena_audit.audit import Index
         from provena_audit.storage import Location
-        index = Index(args.index)
+        index = Index(*args.index)
         names = dict(shards.read_names(Location(args.private))) if args.private else {}
         for clip in args.clips:
             hits = index.search(clip, args.min_votes)
             print(f"{clip}: {len(hits)} match{'es' if len(hits) != 1 else ''}")
             for h in hits:
-                print(f"  {names.get(h['id'], h['id'])}  {h['b_start']:.2f}-{h['b_end']:.2f}s  "
-                      f"(clip {h['clip_start']:.2f}-{h['clip_end']:.2f}s, {h['votes']} votes)")
+                src = f"  from {h['source_url']}" if h.get("source_url") else ""
+                print(f"  [{h['dataset']}] {names.get(h['id'], h['id'])}  {h['b_start']:.2f}-{h['b_end']:.2f}s  "
+                      f"(clip {h['clip_start']:.2f}-{h['clip_end']:.2f}s, {h['votes']} votes){src}")
 
 
 if __name__ == "__main__":

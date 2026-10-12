@@ -8,7 +8,9 @@ Every machine loads all fingerprints but queries only its share, and each pair b
 """
 
 import csv
+import json
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -91,30 +93,58 @@ def combine(send: str, parts: list[str], out: str = "pairs.csv") -> dict:
 
 
 class Index:
-    """Fingerprints loaded once and sorted for repeated single-clip lookups."""
+    """Fingerprints of one or more datasets, loaded once and sorted for repeated single-clip lookups.
 
-    def __init__(self, send: str):
-        data = shards.load(Location(send))
-        rows = np.nonzero(data["quality"] >= MIN_QUALITY)[0]
-        rows = rows[np.argsort(data["owner"][rows], kind="stable")]
-        self.owners, video = np.unique(data["owner"][rows], return_inverse=True)
-        self.pdq = np.ascontiguousarray(data["pdq"][rows]).view(np.uint64)
+    Each folder is either a fingerprint folder (send/) or a dataset folder holding send/ plus optional
+    manifest.json (dataset name, licence, ...) and clips.parquet (one row per clip in shard load order, needs
+    pyarrow); their fields are added to every hit.
+    """
+
+    def __init__(self, *folders: str):
+        owner, offset, pdq, quality, ids = [], [], [], [], []
+        self.parts = []  # (first video, dataset name, manifest fields, clips.parquet columns or None)
+        for folder in folders:
+            root = Path(folder)
+            send = root / "send" if (root / "send").is_dir() else root
+            data = shards.load(Location(send))
+            manifest = json.loads((root / "manifest.json").read_text()) if (root / "manifest.json").exists() else {}
+            name = manifest.get("dataset", root.name)
+            owner.append(data["owner"] + len(ids))
+            offset.append(data["offset"]); pdq.append(data["pdq"]); quality.append(data["quality"])
+            meta = None
+            if (root / "clips.parquet").exists():
+                import pyarrow.parquet as pq
+                meta = pq.read_table(root / "clips.parquet").to_pydict()
+                if meta["id"] != data["ids"].tolist():
+                    raise ValueError(f"{root}/clips.parquet is not in shard order")
+            info = {k: v for k, v in manifest.items() if k in ("licence_stated", "source")}
+            self.parts.append((len(ids), name, info, meta))
+            ids += data["ids"].tolist()
+        self.ids = ids
+        owner, offset, pdq, quality = map(np.concatenate, (owner, offset, pdq, quality))
+        rows = np.nonzero(quality >= MIN_QUALITY)[0]
+        rows = rows[np.argsort(owner[rows], kind="stable")]
+        self.owners, video = np.unique(owner[rows], return_inverse=True)
+        self.pdq = np.ascontiguousarray(pdq[rows]).view(np.uint64)
         self.video = video.astype(np.int64)
-        self.offset = data["offset"][rows].astype(np.float64)
-        self.ids = data["ids"]
+        self.offset = offset[rows].astype(np.float64)
 
     def search(self, clip, min_votes: int = 8, radius: int = 31) -> list[dict]:
-        """Copies of one video file in the index, best first: id, votes, shift and matched ranges (seconds)."""
+        """Copies of one video file in the index, best first: dataset, id, votes, shift, matched ranges (seconds)
+        and the dataset's metadata for that clip (source, file, licence, ...)."""
         from provena_audit.fingerprint import fingerprint_file
         q = fingerprint_file(clip)
         keep = q["quality"] >= MIN_QUALITY
         offset = (np.arange(len(q["pdq"])) / q["fps"])[keep]
         out = _kernel.lookup(self.pdq, self.video, self.offset, np.ascontiguousarray(q["pdq"][keep]).view(np.uint64),
                              offset.astype(np.float64), radius, min_votes, os.cpu_count() or 1)
-        hits = [dict(zip(FIELDS, r)) for r in zip(*out)]
-        for h in hits:
-            h["id"] = str(self.ids[self.owners[h.pop("b")]])
-            h.pop("a")
-            h["clip_end"], h["b_end"] = h.pop("a_end") + 1 / FPS, h["b_end"] + 1 / FPS
-            h["clip_start"] = h.pop("a_start")
+        hits = []
+        for r in zip(*out):
+            h = dict(zip(FIELDS, r))
+            v = int(self.owners[h["b"]])
+            first, name, info, meta = next(p for p in reversed(self.parts) if p[0] <= v)
+            row = {k: col[v - first] for k, col in meta.items() if k != "id"} if meta else {}
+            hits.append({"dataset": name, "id": self.ids[v], "votes": h["votes"], "shift": h["shift"],
+                         "clip_start": h["a_start"], "clip_end": h["a_end"] + 1 / FPS,
+                         "b_start": h["b_start"], "b_end": h["b_end"] + 1 / FPS, **info, **row})
         return sorted(hits, key=lambda h: -h["votes"])
