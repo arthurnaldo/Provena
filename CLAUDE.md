@@ -360,6 +360,18 @@ keyed by id). Built by scripts/openvid_metadata.py from the shards + OpenVid-1M.
 licence, zip, YouTube/stock source URL. OpenVid names give the YouTube ID but not the exact time in the source video.
 Data/ is gitignored: back up data/index to S3 if needed.
 
+### HF datasets run (Oct 12 2026) and a cost overrun
+scripts/hf_video_discovery.py: of the top 300 HF video datasets, 292 host video (~870 TB; most synthetic/robotics).
+scripts/hf_fingerprint.py + scripts/aws_hf.sh ran LLaVA-Video-178K, ShareGPT4Video, Vript, VideoChat3-LV116k (plan
+data/discovery/plan.txt, 11,852 files; VideoChat3 SciVideo_Long tars hold JPEG frames, not video: skipped via done
+markers). Stopped after ~14 h on 37 c7g.2xlarge spot: done LLaVA 220/250, ShareGPT4Video 91/92, Vript 1,917/2,274,
+VideoChat3 7,903/9,236 files; shards in s3://provena-openvid-696865460743/index/<repo>/send/, 0 errors.
+**Cost ~$75 (est.) vs ~$8-12 estimated.** Why: estimate came from OpenVid's 3 s clips; these are long videos
+(decode-bound, workers waited 80-90%), and 4 processes x 1 worker left half of each 8-vCPU machine idle.
+Rules for next runs: estimate from hours of footage, not GB; time one file of each dataset first; set workers to all
+cores; consider 1-2 frames/s for long videos; check spend after the first 30 min. The first launch also failed
+(disk full from 64 queued clips, crashed workers): fixed (2 queued clips per process, crash-safe per file).
+
 ### Full OpenVid-1M audit (Oct 11 2026, AWS, provena-audit C++ kernel, PDQ only, min 8 votes)
 Fingerprinting: 186 zips on 24 c7g.xlarge spot machines, ~4.4 h; audit: 37 c7g.2xlarge, ~1.2 h incl. setup; total
 roughly ~$10-12 (check the AWS bill). Files: data/openvid_send/ (1.3 GB shards, 1,069 files), data/openvid_audit/pairs.csv
