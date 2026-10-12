@@ -90,6 +90,9 @@ uploads openvid_audit/pairs_i.csv; machine 0 waits for all parts, combines -> op
 relaunch a lost part by number). scripts/aws_after_fp.sh (running in the background since Oct 11, log
 data/aws_after_fp.log) relaunches unfinished zips up to 2x, then starts the audit on quota/8 machines (12 at 96 vCPUs,
 est. ~3-4 h, ~$6). Not tested end to end yet; first real run is the OpenVid-1M audit.
+GPU quota (Oct 11): G/VT spot was 0; requested 16 vCPUs (request f778c182d60f4468a2cd00cdccdc69aaKZ5ZUNfw) for SSCD.
+Spot prices us-east-1: g4dn.xlarge (T4) ~$0.30/h, g6.xlarge (L4) ~$0.56/h. Measured SSCD on the Mac: PyTorch CPU
+224-445 ms/frame (no thread scaling), Mac GPU 4.8 ms (224 px) / 11.2 ms (320 px); PDQ 1.2 ms/frame (640x360).
 Split audit (Oct 11): `audit --part i --of N` (machine i queries chunks i, i+N, ...; every machine loads all
 fingerprints) writes a part file; `combine send/ pairs_*.csv` joins them and prints the summary. 10% stock slice:
 3 and 7 parts give the same 10,288 rows as one run; OpenVid test also checks 3 parts + combine == one run.
