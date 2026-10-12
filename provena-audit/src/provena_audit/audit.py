@@ -8,6 +8,7 @@ Every machine loads all fingerprints but queries only its share, and each pair b
 """
 
 import csv
+import io
 import json
 import os
 from pathlib import Path
@@ -101,33 +102,49 @@ class Index:
     """
 
     def __init__(self, *folders: str):
-        owner, offset, pdq, quality, ids = [], [], [], [], []
-        self.parts = []  # (first video, dataset name, manifest fields, clips.parquet columns or None)
+        # Two passes over the shards (count, then fill preallocated arrays) so memory stays near the final size:
+        # 48 bytes per indexed frame (hash, video number, offset).
+        sources = []  # (send Location, shard file) in load order
+        self.parts, self.ids = [], []  # parts: (first video, dataset name, manifest fields, clips.parquet columns)
+        total = 0
         for folder in folders:
             root = Path(folder)
-            send = root / "send" if (root / "send").is_dir() else root
-            data = shards.load(Location(send))
+            send = Location(root / "send" if (root / "send").is_dir() else root)
             manifest = json.loads((root / "manifest.json").read_text()) if (root / "manifest.json").exists() else {}
-            name = manifest.get("dataset", root.name)
-            owner.append(data["owner"] + len(ids))
-            offset.append(data["offset"]); pdq.append(data["pdq"]); quality.append(data["quality"])
+            first = len(self.ids)
+            for f in send.files({".npz"}):
+                with np.load(io.BytesIO(send.read_bytes(f))) as z:
+                    self.ids += [str(i) for i in z["ids"]]
+                    total += int((z["quality"] >= MIN_QUALITY).sum())
+                sources.append((send, f))
             meta = None
             if (root / "clips.parquet").exists():
                 import pyarrow.parquet as pq
                 meta = pq.read_table(root / "clips.parquet").to_pydict()
-                if meta["id"] != data["ids"].tolist():
+                if meta["id"] != self.ids[first:]:
                     raise ValueError(f"{root}/clips.parquet is not in shard order")
             info = {k: v for k, v in manifest.items() if k in ("licence_stated", "source")}
-            self.parts.append((len(ids), name, info, meta))
-            ids += data["ids"].tolist()
-        self.ids = ids
-        owner, offset, pdq, quality = map(np.concatenate, (owner, offset, pdq, quality))
-        rows = np.nonzero(quality >= MIN_QUALITY)[0]
-        rows = rows[np.argsort(owner[rows], kind="stable")]
-        self.owners, video = np.unique(owner[rows], return_inverse=True)
-        self.pdq = np.ascontiguousarray(pdq[rows]).view(np.uint64)
-        self.video = video.astype(np.int64)
-        self.offset = offset[rows].astype(np.float64)
+            self.parts.append((first, manifest.get("dataset", root.name), info, meta))
+        pdq = np.empty((total, 32), np.uint8)
+        owner = np.empty(total, np.int64)
+        self.offset = np.empty(total, np.float64)
+        pos, base = 0, 0
+        for send, f in sources:
+            with np.load(io.BytesIO(send.read_bytes(f))) as z:
+                keep = z["quality"] >= MIN_QUALITY
+                n = int(keep.sum())
+                pdq[pos:pos + n] = z["pdq"][keep]
+                owner[pos:pos + n] = z["owner"][keep] + base
+                self.offset[pos:pos + n] = z["offset"][keep]
+                pos += n
+                base += len(z["ids"])
+        # Shards list each video's frames together, so frames are already grouped by video; number videos 0..V-1.
+        new = np.ones(total, bool)
+        new[1:] = owner[1:] != owner[:-1]
+        self.owners = owner[new]
+        self.video = np.cumsum(new) - 1
+        del owner, new
+        self.pdq = pdq.view(np.uint64)
 
     def search(self, clip, min_votes: int = 8, radius: int = 31) -> list[dict]:
         """Copies of one video file in the index, best first: dataset, id, votes, shift, matched ranges (seconds)

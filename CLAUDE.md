@@ -360,6 +360,15 @@ keyed by id). Built by scripts/openvid_metadata.py from the shards + OpenVid-1M.
 licence, zip, YouTube/stock source URL. OpenVid names give the YouTube ID but not the exact time in the source video.
 Data/ is gitignored: back up data/index to S3 if needed.
 
+### Full search index (Oct 12 2026): 5 datasets
+data/index/: openvid-1m, lmms-lab__LLaVA-Video-178K (88% of files), ShareGPT4Video__ShareGPT4Video (99%),
+Mutonix__Vript (84%), MCG-NJU__VideoChat3-LV116k (86%; SciVideo_Long is JPEG frames, not indexed). 1,630,518 clips,
+~11,500 h, 162.9M indexed frames. Metadata via scripts/hf_metadata.py (YouTube IDs parsed from names like <id>.mp4,
+ytb_<id>.mp4, <id>-Scene-012.mp4: LLaVA 136k, ShareGPT4Video 27k, Vript 367k, VideoChat3 33k clips linked).
+Index loader now counts then fills preallocated arrays: whole index loads in 16 s, 2.8 GB peak on the Mac.
+Test (scripts/index_test.py): 13/13 random edited clips (6 s middle cut, half size, crf 32) found in the right
+dataset at the right time across all 5; 3 unrelated videos 0 false matches; search 0.5-2.4 s (median 1.3 s).
+
 ### HF datasets run (Oct 12 2026) and a cost overrun
 scripts/hf_video_discovery.py: of the top 300 HF video datasets, 292 host video (~870 TB; most synthetic/robotics).
 scripts/hf_fingerprint.py + scripts/aws_hf.sh ran LLaVA-Video-178K, ShareGPT4Video, Vript, VideoChat3-LV116k (plan
