@@ -41,6 +41,7 @@ sdist.exclude = ["tests", "uv.lock"]
 build = "cp311-* cp312-* cp313-* cp314-*"
 skip = "*-win32 *-manylinux_i686 *-musllinux*"
 test-command = "provena-audit --help"
+test-skip = "*-manylinux_aarch64"  # emulated on GitHub (no ARM runners for private repos); x86 Linux runs the same test
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
