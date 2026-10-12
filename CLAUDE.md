@@ -102,8 +102,9 @@ unchanged: 10% slice still 10,288 rows). `Index(send).search(clip)` + `provena-a
 OpenVid-1M on the Mac: ~0.3-0.6 s per search incl. fingerprinting the clip (old first-chunk shortcut ~13 s), same
 hits. Edited-clip test (10 random clips): trim 8-9/10, half size+crf35 9/10, caption bar 7/10, mirrored 0/10,
 unrelated videos 0 false matches; min 5 vs 8 votes barely differs (misses are flat stock clips and mirrors).
-Packaging: MIT, macOS 11+ arm64 wheels cp311-cp314 + sdist built and tested in clean venvs; TestPyPI upload pending
-(user's token). Not done: Linux/Windows wheels (cibuildwheel), real PyPI, mirror (pdq_dihedral) query flips, SSCD. Dropped: reports, evidence, SSCD,
+Packaging: MIT, macOS 11+ arm64 wheels cp311-cp314 + sdist. **Published to TestPyPI Oct 12:
+https://test.pypi.org/project/provena-audit/ (0.1.0, 5 files)**; installed from TestPyPI in a clean venv and ran
+fingerprint/audit/lookup OK. The TestPyPI token was pasted in chat: delete it on test.pypi.org. Not done: Linux/Windows wheels (cibuildwheel), real PyPI, mirror (pdq_dihedral) query flips, SSCD. Dropped: reports, evidence, SSCD,
 store/SQLite/FAISS, Bluesky ingest, eval/Modal scripts, minidedup.
 
 Old layout (on `restart`):
