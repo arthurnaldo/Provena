@@ -341,7 +341,24 @@ duplicate rate: it includes different segments of one source and SSCD look-alike
   run that size: query at 1/s (stored stays 4/s; the Bluesky eval already queried at 1/s), fewer SSCD frames,
   `IndexBinaryMultiHash` for PDQ (exact, faster). A reverse lookup (one clip vs an index) stays cheap.
 
-## Design decisions
+### Full OpenVid-1M audit (Oct 11 2026, AWS, provena-audit C++ kernel, PDQ only, min 8 votes)
+Fingerprinting: 186 zips on 24 c7g.xlarge spot machines, ~4.4 h; audit: 37 c7g.2xlarge, ~1.2 h incl. setup; total
+roughly ~$10-12 (check the AWS bill). Files: data/openvid_send/ (1.3 GB shards, 1,069 files), data/openvid_audit/pairs.csv
+(1,220,522 rows) + summary.txt; also in s3://provena-openvid-696865460743/.
+- **1,019,956 clips, 2,050.8 h: 155.6 h duplicate or near-duplicate footage = 7.6%** (charged to the shorter copy,
+  overlaps merged). By part: Pixabay 106.1 of 211 h (50.4%), Pexels 10.1 of 50 h (20%), Mixkit 1.9 of 5 h (35%),
+  stock total ~118 of 266 h (~44%); YouTube 36.2 of 1,728 h (2.1%); CelebV 1.3 of 56 h (2.4%).
+- By kind (overlapping): segments of the same listing / same source video 83.7 h (4.1%; stock 75.8 h; the old audit
+  never compared these); same video listed twice 53.8 h (2.6%); different source videos 41.4 h (2.0%: YouTube 29.5 h
+  over 106k pairs, Pixabay 10.8 h). Excluding segments, stock ~60-65 h, consistent with the published ~61 h / 23%.
+- Eye check (aligned full-size frames, random seed 11): YouTube different-video pairs: 10/14 real reused footage
+  (cartoon compilations, the same segment uploaded twice, sports, cooking, theme park), 2 identical channel end-screens
+  (MSNBC/NBC), 1 recurring promo segment, 1 not a copy (same studio, different recording). CelebV different-video pairs
+  5/5 the same interview footage. Small sample; say "duplicate or near-duplicate footage".
+- Source keys: YouTube clips are named <11-char video ID>_<n>_<start>to<end>.mp4 (IDs can contain "_"); CelebV
+  celebv_<11-char ID>_<n>.mp4. Pre-flight check of 30,688 AWS clips: 97% of old stock pairs re-found.
+
+
 
 - **Match flow:** PDQ search → (if no confirmed copy, or full provenance wanted) SSCD search → verify each
   SSCD-only candidate by re-running PDQ on the query after undoing likely edits (8 flips/rotations via
