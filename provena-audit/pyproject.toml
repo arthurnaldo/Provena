@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "provena-audit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Find duplicate and near-duplicate footage in a video library. Only small fingerprints leave your machines."
 readme = "README.md"
 license = "MIT"
@@ -36,3 +36,11 @@ dev = ["pytest", "remotezip"]
 wheel.packages = ["src/provena_audit"]
 wheel.exclude = ["provena_audit/kernel.cpp"]
 sdist.exclude = ["tests", "uv.lock"]
+
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-* cp314-*"
+skip = "*-win32 *-manylinux_i686 *-musllinux*"
+test-command = "provena-audit --help"
+
+[tool.cibuildwheel.macos]
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
