@@ -82,6 +82,9 @@ provena-openvid-696865460743, role provena-ec2, Graviton spot machines that inst
 done/<zip>, terminate): tested on 3,000 clips, c7g.xlarge 8.6 clips/s (CPU-bound; Modal's 4 CPUs = ~8 vCPUs), spot
 ~$0.07-0.08/h -> ~$0.003/h of footage (~1.6x cheaper than Modal). Account spot quota is 5 vCPUs; increase to 400
 requested Oct 11 (case opened). AWS CLI logged in as the root user: create a limited IAM user later.
+Oct 11 17:18 PT: quota was already raised to 96 vCPUs; scripts/aws_wait_and_launch.sh launched 24 c7g.xlarge spot
+machines for all 186 zips -> s3://provena-openvid-696865460743/openvid_send (done markers in done/, logs in logs/).
+Expected ~3-4 h, ~$6. Check with `scripts/aws_openvid.sh status`; rerun `launch N` for any zips without a done marker.
 Split audit (Oct 11): `audit --part i --of N` (machine i queries chunks i, i+N, ...; every machine loads all
 fingerprints) writes a part file; `combine send/ pairs_*.csv` joins them and prints the summary. 10% stock slice:
 3 and 7 parts give the same 10,288 rows as one run; OpenVid test also checks 3 parts + combine == one run.
