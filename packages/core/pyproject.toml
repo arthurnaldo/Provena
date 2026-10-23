@@ -1,0 +1,10 @@
+[project]
+name = "core"
+version = "0.0.0"
+description = "Provena data model. Depends on nothing."
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
