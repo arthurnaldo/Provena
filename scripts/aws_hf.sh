@@ -15,7 +15,7 @@ ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 BUCKET=provena-openvid-$ACCOUNT
 ROLE=provena-ec2
 TYPE=${TYPE:-c7g.2xlarge}
-PLAN=data/discovery/plan.txt
+PLAN=${PLAN:-data/discovery/plan.txt}
 
 case "$1" in
 plan)
@@ -60,8 +60,8 @@ export HF_TOKEN=\$(aws ssm get-parameter --region $REGION --name /provena/hf_tok
   --query Parameter.Value --output text 2>/dev/null || true)
 ID=\$(cat /var/lib/cloud/data/instance-id)
 ( while true; do sleep 300; tail -n 3 /var/log/fp_*.log > /tmp/progress.txt; aws s3 cp /tmp/progress.txt s3://$BUCKET/logs/hf_\$ID.log --quiet; done ) &
-for k in 0 1 2 3; do  # 4 files in flight per machine (long single videos use one core each)
-  /opt/v/bin/python /opt/hf_fingerprint.py --plan /opt/plan.txt --part \$(( $i * 4 + k )) --of $(( N * 4 )) \
+for k in 0 1 2 3 4 5 6 7; do  # 8 files in flight per machine, one per core (long single videos use one core each)
+  /opt/v/bin/python /opt/hf_fingerprint.py --plan /opt/plan.txt --part \$(( $i * 8 + k )) --of $(( N * 8 )) \
     --out s3://$BUCKET/index --workers 1 > /var/log/fp_\$k.log 2>&1 &
 done
 wait
