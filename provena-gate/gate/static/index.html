@@ -5,75 +5,103 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Provena Gate</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: a procurement desk. Left rail = account + library + past deliveries; main = the delivery under review. */
+/* Layout: a review console. Left rail = account, library, past deliveries; main = the delivery under review, summary first. */
 :root {
-  --bg: #f5f6f4; --panel: #ffffff; --ink: #1c2420; --muted: #5d6a63; --line: #dde2de;
-  --accent: #2f5d50; --approve: #2e7d4f; --hold: #b4432f; --review: #b7791f; --chip: #eef1ee;
+  --bg: #0d1118; --bg-2: #111724; --panel: #151c29; --panel-2: #1a2232; --ink: #e9edf3; --muted: #93a0b4; --line: #243046;
+  --accent: #8b88ff; --accent-2: #b8b6ff; --glow: rgba(139, 136, 255, .35);
+  --approve: #4fd18b; --hold: #ff7a63; --review: #f2b54b; --chip: #1f2838;
+  --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
   --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
-  color-scheme: light;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #131816; --panel: #1b211f; --ink: #e4e9e6; --muted: #98a59e; --line: #2c3532;
-  --accent: #7fb8a4; --approve: #5cbf85; --hold: #e2735d; --review: #e0a948; --chip: #242c29; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #131816; --panel: #1b211f; --ink: #e4e9e6; --muted: #98a59e; --line: #2c3532;
-  --accent: #7fb8a4; --approve: #5cbf85; --hold: #e2735d; --review: #e0a948; --chip: #242c29; color-scheme: dark }
 * { box-sizing: border-box }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans) }
-header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px max(16px, env(safe-area-inset-left, 0px));
-  border-bottom: 1px solid var(--line); background: var(--panel) }
-header h1 { font-size: 17px; margin: 0; letter-spacing: .01em } header h1 span { color: var(--accent) }
-.status { color: var(--muted); font-size: 12.5px; flex: 1 }
-main { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px)) }
+body { margin: 0; color: var(--ink); font: 14px/1.5 var(--sans);
+  background: radial-gradient(1200px 600px at 85% -10%, rgba(139, 136, 255, .14), transparent 60%),
+              radial-gradient(900px 500px at -10% 110%, rgba(79, 209, 139, .07), transparent 60%), var(--bg) }
+header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center;
+  padding: 14px max(20px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--line);
+  background: rgba(13, 17, 24, .78); backdrop-filter: blur(12px) }
+header h1 { font: 700 19px var(--display); margin: 0; display: flex; align-items: center; gap: 10px; letter-spacing: -0.01em }
+header h1 i { width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(135deg, var(--accent), #5b57e8); position: relative; box-shadow: 0 0 18px var(--glow) }
+header h1 i::after { content: ""; position: absolute; inset: 6px; border: 2px solid var(--bg); border-radius: 2px }
+header h1 span { color: var(--accent-2) }
+.status { color: var(--muted); font-size: 12.5px; flex: 1; display: flex; align-items: center; gap: 8px }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--approve); box-shadow: 0 0 10px var(--approve) }
+main { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 22px; padding: 22px max(20px, env(safe-area-inset-right, 0px)) 48px max(20px, env(safe-area-inset-left, 0px)) }
 @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr) } }
-section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0 }
-.rail { display: grid; gap: 20px; align-content: start } .stack { display: grid; gap: 20px; align-content: start; min-width: 0 }
-h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; font-weight: 600 }
-h3 { font-size: 15px; margin: 0 }
-label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted) }
+section { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 12px; min-width: 0;
+  box-shadow: 0 20px 40px -30px rgba(0, 0, 0, .8) }
+.rail { display: grid; gap: 18px; align-content: start } .stack { display: grid; gap: 18px; align-content: start; min-width: 0 }
+h2 { font: 500 11.5px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--accent-2); margin: 0 }
+h3 { font: 600 20px var(--display); margin: 0; letter-spacing: -0.01em }
+label { display: grid; gap: 5px; font-size: 12.5px; color: var(--muted) }
 input, select, button { font: inherit; color: var(--ink) }
-input[type=text], input[type=number], select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100% }
-input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
-button { background: var(--accent); color: var(--panel); border: 0; border-radius: 6px; padding: 8px 14px; font-weight: 500; cursor: pointer }
-button.quiet { background: var(--chip); color: var(--ink) } button:disabled { opacity: .5; cursor: wait }
+input[type=text], input[type=number], select { background: var(--bg-2); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%; transition: border-color .2s, box-shadow .2s }
+input[type=text]:focus, input[type=number]:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow) }
+input[type=file] { color: var(--muted); font-size: 12.5px }
+input[type=file]::file-selector-button { background: var(--chip); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; margin-right: 10px; cursor: pointer }
+button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px }
+button { background: linear-gradient(135deg, var(--accent), #6a66f0); color: #0d1118; border: 0; border-radius: 9px; padding: 9px 16px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 8px 20px -10px var(--glow); transition: transform .15s ease, filter .15s ease }
+button:hover { filter: brightness(1.1); transform: translateY(-1px) }
+button.quiet { background: var(--chip); color: var(--ink); box-shadow: none; border: 1px solid var(--line) }
+button:disabled { opacity: .55; cursor: wait; transform: none }
+#delSubmit:disabled { background: linear-gradient(90deg, #5b57e8, var(--accent), #5b57e8); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; opacity: 1 }
+@keyframes shimmer { to { background-position: -200% 0 } }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end } .row > label { flex: 1 1 120px }
 .muted { color: var(--muted) } .small { font-size: 12.5px } .mono, td.num { font-family: var(--mono); font-variant-numeric: tabular-nums }
-.list { display: grid; gap: 2px; max-height: 220px; overflow: auto; font-size: 13px }
-.list button { background: none; color: var(--ink); text-align: left; padding: 6px 8px; display: flex; justify-content: space-between; gap: 8px }
-.list button:hover, .list button.on { background: var(--chip) }
-.split { display: grid; gap: 10px }
-.bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--chip) }
-.bar i { display: block } .totals { display: flex; flex-wrap: wrap; gap: 8px 28px }
-.total b { display: block; font: 500 20px var(--mono) } .total span { font-size: 12px; color: var(--muted) }
-.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px }
-.pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--chip); white-space: nowrap }
-.pill.hold { color: var(--hold) } .pill.release { color: var(--approve) }
-.thread { margin-top: 6px; padding: 6px 8px; background: var(--chip); border-radius: 6px }
-.actions { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px } .pill.escalate { color: var(--review) } .pill.static { color: var(--muted) }
+.list { display: grid; gap: 3px; max-height: 220px; overflow: auto; font-size: 13px }
+.list button { background: none; color: var(--ink); text-align: left; padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; box-shadow: none; font-weight: 500 }
+.list button:hover, .list button.on { background: var(--chip); transform: none }
+.list button.on { box-shadow: inset 2px 0 0 var(--accent) }
+.split { display: grid; gap: 14px }
+.bar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; background: var(--chip) }
+.bar i { display: block }
+.totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+@media (max-width: 760px) { .totals { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.total { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px }
+.total b { display: block; font: 600 30px var(--display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums }
+.total span { font-size: 12.5px; color: var(--muted); display: flex; align-items: center }
+.total:nth-child(2) b { color: var(--approve) } .total:nth-child(3) b { color: var(--hold) } .total:nth-child(4) b { color: var(--review) }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; background: var(--chip); white-space: nowrap; border: 1px solid var(--line) }
+.pill.hold { color: var(--hold); border-color: rgba(255, 122, 99, .35); background: rgba(255, 122, 99, .1) }
+.pill.release { color: var(--approve); border-color: rgba(79, 209, 139, .35); background: rgba(79, 209, 139, .1) }
+.pill.escalate { color: var(--review); border-color: rgba(242, 181, 75, .35); background: rgba(242, 181, 75, .1) }
+.pill.static { color: var(--muted) }
+.thread { margin-top: 8px; padding: 10px 12px; background: rgba(139, 136, 255, .1); border: 1px solid rgba(139, 136, 255, .3); border-radius: 10px; line-height: 1.55 }
+.actions { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px }
 .table { overflow-x: auto } table { border-collapse: collapse; width: 100%; font-size: 13px }
-th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line) }
-td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top } td.reason { min-width: 260px }
-.report { white-space: pre-wrap; border-left: 3px solid var(--accent); padding: 4px 0 4px 12px }
-.banner { padding: 10px 12px; border-radius: 6px; background: var(--chip); font-size: 13px }
+th { text-align: left; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line) }
+td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top } td.reason { min-width: 240px; max-width: 360px; color: #c3cbd8 }
+tbody tr:not(.evrow):hover td { background: rgba(139, 136, 255, .05) }
+.report { white-space: pre-wrap; border-left: 2px solid var(--accent); padding: 4px 0 4px 16px; color: #d3d9e3; line-height: 1.6 }
+.banner { padding: 12px 14px; border-radius: 10px; background: rgba(242, 181, 75, .08); border: 1px solid rgba(242, 181, 75, .3); font-size: 13px }
 .files { display: grid; gap: 6px; max-height: 240px; overflow: auto }
 .files .row { flex-wrap: nowrap } .files .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px }
-.files input { max-width: 160px }
+.files input { max-width: 160px; padding: 6px 9px }
 details summary { cursor: pointer; color: var(--muted); font-size: 13px }
-.log { font-size: 12.5px; display: grid; gap: 4px; margin-top: 8px } .log div { display: grid; grid-template-columns: 64px 82px 1fr; gap: 8px }
-.empty { color: var(--muted); padding: 24px 0; text-align: center }
-button.ev { margin-top: 6px; padding: 3px 10px; font-size: 12px }
-.evrow td { background: var(--bg) } .evidence { display: grid; gap: 10px; margin-bottom: 8px }
-.frames { display: flex; gap: 8px; flex-wrap: wrap } figure { margin: 0; display: grid; gap: 2px }
-figure img { width: 200px; max-width: 100%; border-radius: 4px; border: 1px solid var(--line); display: block }
-figure.missing { width: 200px; height: 112px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 4px }
-@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .4s ease } }
+.log { font-size: 12.5px; display: grid; gap: 5px; margin-top: 10px } .log div { display: grid; grid-template-columns: 64px 82px 1fr; gap: 10px }
+.empty { color: var(--muted); padding: 36px 0; text-align: center }
+button.ev { margin-top: 8px; padding: 5px 12px; font-size: 12px; background: var(--chip); color: var(--accent-2); border: 1px solid rgba(139, 136, 255, .35); box-shadow: none }
+.evrow td { background: var(--bg-2) } .evidence { display: grid; gap: 12px; margin-bottom: 10px }
+.frames { display: flex; gap: 10px; flex-wrap: wrap } figure { margin: 0; display: grid; gap: 4px }
+figure img { width: 220px; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); display: block; box-shadow: 0 10px 24px -14px rgba(0, 0, 0, .9) }
+figure.missing { width: 220px; height: 124px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 8px }
+@media (prefers-reduced-motion: no-preference) {
+  .bar i { transition: width .7s cubic-bezier(.3, .7, .2, 1) }
+  #result > section { animation: rise .55s cubic-bezier(.2, .7, .2, 1) both }
+  #result > section:nth-child(2) { animation-delay: .08s } #result > section:nth-child(3) { animation-delay: .16s } #result > section:nth-child(4) { animation-delay: .24s }
+  .evrow:not([hidden]) td { animation: rise .4s ease both }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+}
 </style>
 </head>
 <body>
 <header>
-  <h1>Provena <span>Gate</span></h1>
+  <h1><i aria-hidden="true"></i>Provena <span>Gate</span></h1>
   <div class="status" id="status">Loading…</div>
   <label class="small" style="grid-auto-flow: column; align-items: center">Account
     <select id="account"></select></label>
