@@ -32,25 +32,34 @@ def _fingerprint(path: str) -> dict | str:
         return f"error: {e}"
 
 
-def add_to_library(con: sqlite3.Connection, root: str | Path, account_id: int,
-                   paths: list[str | Path]) -> tuple[list[str], dict[str, str]]:
-    """Fingerprint video files into an account's library. Returns (new clip IDs, {path: error}).
+def delivery_dir(root: str | Path, delivery_id: int) -> Path:
+    return Path(root) / "deliveries" / str(delivery_id)
 
-    Files are not deleted here: the caller removes uploads, and a customer's own folder stays untouched.
-    """
+
+def fingerprint_into(folder: Path, tag: str, paths: list[str | Path]) -> tuple[list[dict], dict[str, str]]:
+    """Fingerprint video files into new shards in folder/send, in input order. Returns (fingerprints with id,
+    name and path, {path: error}). Files are not deleted here: the caller removes uploads, and a customer's own
+    folder stays untouched."""
     paths = [str(p) for p in paths]
-    send = Location(library_dir(root, account_id) / "send")
+    send = Location(folder / "send")
     added, errors = [], {}
     with ProcessPoolExecutor() as pool:
         for path, fp in zip(paths, pool.map(_fingerprint, paths)):
             if isinstance(fp, str):
                 errors[path] = fp
                 continue
-            fp["id"], fp["name"] = secrets.token_hex(8), Path(path).name
+            fp["id"], fp["name"], fp["path"] = secrets.token_hex(8), Path(path).name, path
             added.append(fp)
-    first = shards.shard_count(send, "lib")
+    first = shards.shard_count(send, tag)
     for i in range(0, len(added), SHARD_SIZE):
-        shards.write_shard(send, "lib", first + i // SHARD_SIZE, added[i:i + SHARD_SIZE])
+        shards.write_shard(send, tag, first + i // SHARD_SIZE, added[i:i + SHARD_SIZE])
+    return added, errors
+
+
+def add_to_library(con: sqlite3.Connection, root: str | Path, account_id: int,
+                   paths: list[str | Path]) -> tuple[list[str], dict[str, str]]:
+    """Fingerprint video files into an account's library. Returns (new clip IDs, {path: error})."""
+    added, errors = fingerprint_into(library_dir(root, account_id), "lib", paths)
     with con:
         con.executemany("INSERT INTO clips (id, account_id, name, duration) VALUES (?, ?, ?, ?)",
                         [(v["id"], account_id, v["name"], v["duration"]) for v in added])

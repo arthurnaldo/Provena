@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
     rate_per_hour REAL NOT NULL,                    -- invoice price per hour of footage
     invoice_total REAL NOT NULL,
     status TEXT NOT NULL DEFAULT 'received',        -- received -> checked -> decided
+    errors TEXT NOT NULL DEFAULT '{}',              -- JSON {file: reason} for files that could not be read
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS clips (
@@ -42,7 +43,8 @@ CREATE TABLE IF NOT EXISTS findings (
     match_start REAL NOT NULL, match_end REAL NOT NULL,
     votes INTEGER NOT NULL,
     static INTEGER NOT NULL DEFAULT 0,              -- little motion: weak evidence, a human decides
-    amount REAL NOT NULL                            -- invoice value of the matched seconds
+    amount REAL NOT NULL,                           -- invoice value of the matched seconds
+    details TEXT NOT NULL DEFAULT '{}'              -- JSON extras, e.g. a public dataset's licence and source URL
 );
 CREATE TABLE IF NOT EXISTS decisions (
     id INTEGER PRIMARY KEY,
