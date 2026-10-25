@@ -21,6 +21,10 @@ def allowed_actions(finding: dict) -> set[str]:
     return {"escalate"} if finding["static"] or finding["votes"] < STRONG_VOTES else {"hold", "escalate"}
 
 
+def default_action(finding: dict) -> str:
+    return "hold" if "hold" in allowed_actions(finding) else "escalate"
+
+
 def check(finding: dict, action: str) -> None:
     if action not in allowed_actions(finding):
         raise ValueError(f"{action} is not allowed for finding {finding['id']} "
@@ -61,7 +65,7 @@ def apply_rules(con: sqlite3.Connection, delivery_id: int) -> dict:
     r = report(con, delivery_id)
     actions, out = {}, []
     for f in r["findings"]:
-        action = "hold" if "hold" in allowed_actions(f) else "escalate"
+        action = default_action(f)
         why = REASONS[f["kind"]].format(**f)
         if action == "escalate":
             why += ": static footage, weak evidence" if f["static"] else f": weak match ({f['votes']} frames)"
