@@ -1,0 +1,57 @@
+"""Glue to the matching engine (provena-audit): account libraries as fingerprint folders.
+
+Each account's library is a dataset folder <root>/accounts/<id>/library (send/ shards + manifest.json), so the
+engine's Index labels its hits "acct:<id>". Video is fingerprinted and never stored.
+"""
+
+import json
+import secrets
+import sqlite3
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+from provena_audit import shards
+from provena_audit.fingerprint import fingerprint_file
+from provena_audit.storage import Location
+
+SHARD_SIZE = 500
+
+
+def library_dir(root: str | Path, account_id: int) -> Path:
+    d = Path(root) / "accounts" / str(account_id) / "library"
+    if not (d / "manifest.json").exists():
+        (d / "send").mkdir(parents=True, exist_ok=True)
+        (d / "manifest.json").write_text(json.dumps({"dataset": f"acct:{account_id}"}))
+    return d
+
+
+def _fingerprint(path: str) -> dict | str:
+    try:
+        return fingerprint_file(path)
+    except Exception as e:
+        return f"error: {e}"
+
+
+def add_to_library(con: sqlite3.Connection, root: str | Path, account_id: int,
+                   paths: list[str | Path]) -> tuple[list[str], dict[str, str]]:
+    """Fingerprint video files into an account's library. Returns (new clip IDs, {path: error}).
+
+    Files are not deleted here: the caller removes uploads, and a customer's own folder stays untouched.
+    """
+    paths = [str(p) for p in paths]
+    send = Location(library_dir(root, account_id) / "send")
+    added, errors = [], {}
+    with ProcessPoolExecutor() as pool:
+        for path, fp in zip(paths, pool.map(_fingerprint, paths)):
+            if isinstance(fp, str):
+                errors[path] = fp
+                continue
+            fp["id"], fp["name"] = secrets.token_hex(8), Path(path).name
+            added.append(fp)
+    first = shards.shard_count(send, "lib")
+    for i in range(0, len(added), SHARD_SIZE):
+        shards.write_shard(send, "lib", first + i // SHARD_SIZE, added[i:i + SHARD_SIZE])
+    with con:
+        con.executemany("INSERT INTO clips (id, account_id, name, duration) VALUES (?, ?, ?, ?)",
+                        [(v["id"], account_id, v["name"], v["duration"]) for v in added])
+    return [v["id"] for v in added], errors
