@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS disputes (
     author TEXT NOT NULL,
     message TEXT NOT NULL,
     reply TEXT,
+    outcome TEXT,                                   -- uphold | escalate (Claude never releases payment)
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """

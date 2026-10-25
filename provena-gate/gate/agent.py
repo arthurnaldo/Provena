@@ -155,3 +155,63 @@ def run_agent(con: sqlite3.Connection, delivery_id: int, client: anthropic.Anthr
         con.execute("UPDATE deliveries SET status = 'decided' WHERE id = ?", (delivery_id,))
     return {**totals, "agent": True, "actions": [{"finding_id": i, "action": a} for i, a in actions.items()],
             "buyer_report": done["buyer_report"], "contributor_notes": done["contributor_notes"]}
+
+
+DISPUTE_SYSTEM = """You answer a dispute from a contributor or vendor about one finding in a review of a video \
+delivery. You get the finding, the matching engine's facts and frames: three moments from the delivered clip and, \
+where allowed, the same moments in the match. Choose an outcome: "uphold" keeps the current action; "escalate" sends \
+the finding to a person. You cannot release payment; only a person can. Escalate when the dispute raises something \
+the evidence cannot settle (for example, they say they shot the original or hold a licence) or when the frames do \
+not clearly show the same footage. Reply to the person plainly and respectfully: say what the frames and seconds \
+show and what happens next. Use only the facts given; never say a model was trained on the footage."""
+
+DISPUTE_FORMAT = {"type": "json_schema", "schema": {
+    "type": "object", "properties": {"reply": {"type": "string"}, "outcome": {"type": "string", "enum": ["uphold", "escalate"]}},
+    "required": ["reply", "outcome"], "additionalProperties": False}}
+
+
+def reply_to_dispute(con: sqlite3.Connection, root, delivery_id: int, finding_id: int, author: str, message: str,
+                     client: anthropic.Anthropic | None = None) -> dict:
+    """Claude reads the dispute with the evidence frames and replies; it may send the finding to a person, never
+    release payment. If Claude is unavailable the finding goes to a person."""
+    from gate.evidence import evidence  # evidence imports findings; keep agent importable without it at module load
+    r = report(con, delivery_id)
+    f = next((x for x in r["findings"] if x["id"] == finding_id), None)
+    if f is None:
+        raise ValueError(f"no finding {finding_id} in delivery {delivery_id}")
+    current = rules.current_actions(con, delivery_id, r["findings"])[finding_id]
+    ev = evidence(con, root, delivery_id, finding_id)
+    content = [{"type": "text", "text": json.dumps({"finding": f, "current_action": current, "evidence_note": ev["note"]})}]
+    for side, label in (("clip", "Delivered clip"), ("match", "Match")):
+        for x in ev[side] or []:
+            if x["src"]:
+                content += [{"type": "text", "text": f"{label}, frame at {x['t']} s:"},
+                            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                         "data": x["src"].split(",", 1)[1]}}]
+    content.append({"type": "text", "text": f"Dispute from {author}: {message}"})
+    try:
+        client = client or anthropic.Anthropic()
+        response = client.beta.messages.create(
+            model=MODEL, max_tokens=4000, system=DISPUTE_SYSTEM, messages=[{"role": "user", "content": content}],
+            output_config={"effort": "medium", "format": DISPUTE_FORMAT},
+            betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+        if response.stop_reason != "end_turn":
+            raise ValueError(f"stopped: {response.stop_reason}")
+        out = json.loads(next(b.text for b in response.content if b.type == "text"))
+    except (anthropic.APIError, ValueError, StopIteration) as e:
+        out = {"reply": "Thanks, we have your message. A person will review this finding and get back to you.",
+               "outcome": "escalate"}
+        _log(con, delivery_id, "unavailable", f"dispute reply: {e.__class__.__name__}; sent to a person", finding_id)
+    with con:
+        dispute_id = con.execute("INSERT INTO disputes (finding_id, author, message, reply, outcome) VALUES (?, ?, ?, ?, ?)",
+                                 (finding_id, author, message, out["reply"], out["outcome"])).lastrowid
+    _log(con, delivery_id, "dispute", f"{author}: {message}", finding_id)
+    _log(con, delivery_id, "reply", out["reply"], finding_id)
+    if out["outcome"] == "escalate":
+        actions = rules.current_actions(con, delivery_id, r["findings"])
+        held = [s for s in rules.siblings(r["findings"], f) if actions[s["id"]] == "hold"]
+        for s in held:
+            _log(con, delivery_id, "escalate", f"disputed by {author}; a person decides", s["id"], s["amount"])
+        if held:
+            rules.resplit(con, delivery_id, "claude")
+    return {"id": dispute_id, "author": author, "message": message, **out}

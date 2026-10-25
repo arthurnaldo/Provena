@@ -39,8 +39,33 @@ def _length(intervals: list[tuple[float, float]]) -> float:
     return total
 
 
+def current_actions(con: sqlite3.Connection, delivery_id: int, findings: list[dict]) -> dict[int, str]:
+    """The latest hold / escalate / release per finding from the decision log, else the default."""
+    latest = {row[0]: row[1] for row in con.execute(
+        "SELECT finding_id, action FROM decisions WHERE delivery_id = ? AND finding_id IS NOT NULL "
+        "AND action IN ('hold', 'escalate', 'release') ORDER BY id", (delivery_id,))}
+    return {f["id"]: latest.get(f["id"], default_action(f)) for f in findings}
+
+
+def siblings(findings: list[dict], finding: dict) -> list[dict]:
+    """Findings of the same kind on the same clip (e.g. a dataset that holds both a video and a scene cut from it):
+    a dispute or a person's decision covers them together."""
+    return [f for f in findings if f["clip_id"] == finding["clip_id"] and f["kind"] == finding["kind"]]
+
+
+def resplit(con: sqlite3.Connection, delivery_id: int, actor: str) -> dict:
+    """Recalculate and log the split after a decision changed."""
+    r = report(con, delivery_id)
+    totals = split(r, current_actions(con, delivery_id, r["findings"]))
+    with con:
+        con.execute("INSERT INTO decisions (delivery_id, actor, action, amount, reason) VALUES (?, ?, 'split', ?, ?)",
+                    (delivery_id, actor, totals["approved"], json.dumps(totals)))
+    return totals
+
+
 def split(r: dict, actions: dict[int, str]) -> dict:
-    """Invoice split for {finding id: hold | escalate}: each second of a clip counted once, held before review."""
+    """Invoice split for {finding id: hold | escalate | release}: each second of a clip counted once, held before
+    review; released findings (a person decided to pay) count as approved."""
     rate, billed = r["delivery"]["rate_per_hour"], r["delivery"]["invoice_total"]
     held_s = review_s = 0.0
     for clip in {f["clip_id"] for f in r["findings"]}:

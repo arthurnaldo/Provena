@@ -49,7 +49,9 @@ button.quiet { background: var(--chip); color: var(--ink) } button:disabled { op
 .total b { display: block; font: 500 20px var(--mono) } .total span { font-size: 12px; color: var(--muted) }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--chip); white-space: nowrap }
-.pill.hold { color: var(--hold) } .pill.escalate { color: var(--review) } .pill.static { color: var(--muted) }
+.pill.hold { color: var(--hold) } .pill.release { color: var(--approve) }
+.thread { margin-top: 6px; padding: 6px 8px; background: var(--chip); border-radius: 6px }
+.actions { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px } .pill.escalate { color: var(--review) } .pill.static { color: var(--muted) }
 .table { overflow-x: auto } table { border-collapse: collapse; width: 100%; font-size: 13px }
 th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line) }
 td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top } td.reason { min-width: 260px }
@@ -122,6 +124,7 @@ const $ = id => document.getElementById(id);
 const money = n => "$" + (n ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 const secs = (a, b) => `${a.toFixed(1)}–${b.toFixed(1)} s`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const ACTION = {hold: "Hold", escalate: "Person decides", release: "Released"};
 const KIND = {repeat_in_delivery: "Repeat in delivery", in_own_library: "Already in library",
               sold_to_other_buyer: "Sold to another buyer", public_dataset: "Public dataset"};
 let accounts = [], current = null, selected = null;
@@ -175,8 +178,8 @@ function render(d) {
       <td>${esc(f.source)}${f.match_name ? `<div class="small muted">${esc(f.match_name)}</div>` : ""}${f.first_seen ? `<div class="small muted">first seen ${f.first_seen}</div>` : ""}${f.licence ? `<div class="small muted">licence: ${esc(f.licence)}</div>` : ""}</td>
       <td class="num">${f.votes}</td>
       <td class="num">${money(f.amount)}</td>
-      <td><span class="pill ${f.action}">${f.action === "hold" ? "Hold" : "Person decides"}</span><div class="small muted">by ${f.actor}</div></td>
-      <td class="reason small">${esc(f.reason)}<div><button class="quiet ev" data-ev="${f.id}">Show evidence</button></div></td></tr>
+      <td><span class="pill ${f.action}">${ACTION[f.action] || f.action}</span><div class="small muted">by ${f.actor}</div></td>
+      <td class="reason small">${esc(f.reason)}${f.disputes.map(x => `<div class="thread"><b>${esc(x.author)}:</b> ${esc(x.message)}<br><b>Claude:</b> ${esc(x.reply)} <span class="pill">${x.outcome === "escalate" ? "sent to a person" : "upheld"}</span></div>`).join("")}<div><button class="quiet ev" data-ev="${f.id}">Show evidence</button></div></td></tr>
       <tr class="evrow" id="ev${f.id}" hidden><td colspan="8"></td></tr>`).join("");
   $("result").innerHTML = `
     <section>
@@ -221,8 +224,30 @@ async function toggleEvidence(deliveryId, findingId, button) {
     const strip = (title, frames) => `<div class="strip"><div class="small muted">${title}</div><div class="frames">${frames.map(x =>
       x.src ? `<figure><img src="${x.src}" alt="frame at ${x.t} s"><figcaption class="mono small">${x.t.toFixed(1)} s</figcaption></figure>`
             : `<figure class="missing small muted">no frame</figure>`).join("")}</div></div>`;
-    cell.innerHTML = `<div class="evidence">${strip("Delivered clip", e.clip)}${e.match ? strip("Match", e.match) : ""}</div>${e.note ? `<div class="banner">${esc(e.note)}</div>` : ""}`;
+    cell.innerHTML = `<div class="evidence">${strip("Delivered clip", e.clip)}${e.match ? strip("Match", e.match) : ""}</div>${e.note ? `<div class="banner">${esc(e.note)}</div>` : ""}
+      <div class="actions">
+        <form class="row disputeForm"><label>Dispute as <input type="text" name="author" required placeholder="contributor or vendor"></label>
+          <label style="flex: 3 1 260px">Message <input type="text" name="message" required placeholder="e.g. I filmed this myself last week"></label>
+          <button>Send dispute</button></form>
+        <form class="row decideForm"><label style="flex: 3 1 260px">Person's decision <input type="text" name="reason" placeholder="reason (optional)"></label>
+          <button class="quiet" value="hold">Keep holding</button><button value="release">Release payment</button></form>
+      </div>`;
     cell.dataset.loaded = "1";
+    cell.querySelector(".disputeForm").onsubmit = async ev => {
+      ev.preventDefault(); const b = ev.submitter; b.disabled = true; b.textContent = "Claude is reviewing…";
+      const fd = new FormData(ev.target);
+      try { const d = await api(`/api/deliveries/${deliveryId}/findings/${findingId}/disputes`, {method: "POST",
+          headers: {"content-type": "application/json"}, body: JSON.stringify({author: fd.get("author"), message: fd.get("message")})});
+        render(d); reopen(d.delivery.id, findingId);
+      } catch (err) { alertBox(err.message); b.disabled = false; b.textContent = "Send dispute"; }
+    };
+    cell.querySelector(".decideForm").onsubmit = async ev => {
+      ev.preventDefault();
+      try { const d = await api(`/api/deliveries/${deliveryId}/findings/${findingId}/decision`, {method: "POST",
+          headers: {"content-type": "application/json"}, body: JSON.stringify({action: ev.submitter.value, reason: new FormData(ev.target).get("reason")})});
+        render(d); reopen(d.delivery.id, findingId); loadAccount();
+      } catch (err) { alertBox(err.message); }
+    };
   } catch (err) { cell.innerHTML = `<div class="banner">${esc(err.message)}</div>`; }
 }
 
@@ -259,6 +284,10 @@ $("delForm").onsubmit = async e => {
     selected = d.delivery.id; render(d); $("delForm").reset(); $("fileRows").innerHTML = ""; await loadAccount();
   } catch (err) { alertBox(err.message); } finally { $("delSubmit").disabled = false; $("delHint").textContent = ""; }
 };
+function reopen(deliveryId, findingId) {
+  const b = $("result").querySelector(`button.ev[data-ev="${findingId}"]`);
+  if (b) toggleEvidence(deliveryId, findingId, b);
+}
 function alertBox(msg) { $("result").insertAdjacentHTML("afterbegin", `<section><div class="banner">${esc(msg)}</div></section>`); }
 
 loadStatus(); loadAccounts();

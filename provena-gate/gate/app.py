@@ -15,6 +15,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from typing import Literal
+
 from pydantic import BaseModel
 from provena_audit.audit import Index
 
@@ -82,7 +84,7 @@ def delivery_view(con: sqlite3.Connection, delivery_id: int) -> dict:
         (delivery_id,))]
     actions, split, buyer_report, notes, agent_note = {}, None, None, [], None
     for row in log:
-        if row["finding_id"] is not None and row["action"] in ("hold", "escalate"):
+        if row["finding_id"] is not None and row["action"] in ("hold", "escalate", "release"):
             actions[row["finding_id"]] = {"action": row["action"], "reason": row["reason"], "actor": row["actor"]}
         elif row["action"] == "split":
             split = json.loads(row["reason"][row["reason"].index("{"):]) | {"by": row["actor"]}
@@ -92,8 +94,12 @@ def delivery_view(con: sqlite3.Connection, delivery_id: int) -> dict:
             notes.append(row["reason"])
         elif row["action"] == "unavailable":
             agent_note = row["reason"]
+    disputes = {}
+    for row in con.execute("SELECT d.* FROM disputes d JOIN findings f ON f.id = d.finding_id WHERE f.delivery_id = ? "
+                           "ORDER BY d.id", (delivery_id,)):
+        disputes.setdefault(row["finding_id"], []).append(dict(row))
     for f in r["findings"]:
-        f.update(actions.get(f["id"], {}))
+        f.update(actions.get(f["id"], {}), disputes=disputes.get(f["id"], []))
     return {**r, "split": split, "buyer_report": buyer_report, "contributor_notes": notes,
             "agent_note": agent_note, "log": log}
 
@@ -187,6 +193,56 @@ def finding_evidence(delivery_id: int, finding_id: int) -> dict:
         if e is None:
             raise HTTPException(404, f"no finding {finding_id} in delivery {delivery_id}")
         return e
+
+
+class Dispute(BaseModel):
+    author: str
+    message: str
+
+
+class Decision(BaseModel):
+    action: Literal["hold", "release"]
+    reason: str
+
+
+def finding_or_404(con: sqlite3.Connection, delivery_id: int, finding_id: int) -> None:
+    if con.execute("SELECT 1 FROM findings WHERE id = ? AND delivery_id = ?", (finding_id, delivery_id)).fetchone() is None:
+        raise HTTPException(404, f"no finding {finding_id} in delivery {delivery_id}")
+
+
+@app.post("/api/deliveries/{delivery_id}/findings/{finding_id}/disputes")
+def dispute(delivery_id: int, finding_id: int, body: Dispute) -> dict:
+    """A contributor or vendor disputes a finding; Claude replies with the evidence and may send it to a person."""
+    with connect() as con:
+        finding_or_404(con, delivery_id, finding_id)
+        if status()["agent"]:
+            agent.reply_to_dispute(con, ROOT, delivery_id, finding_id, body.author.strip(), body.message.strip())
+        else:
+            agent.reply_to_dispute(con, ROOT, delivery_id, finding_id, body.author.strip(), body.message.strip(),
+                                   client=_Offline())
+        return delivery_view(con, delivery_id)
+
+
+class _Offline:
+    """Stands in for the Claude client when the review is off: every dispute goes to a person."""
+    @property
+    def beta(self):
+        raise ValueError("Claude review is off")
+
+
+@app.post("/api/deliveries/{delivery_id}/findings/{finding_id}/decision")
+def human_decision(delivery_id: int, finding_id: int, body: Decision) -> dict:
+    """A person's final call on a finding: keep holding it, or release the payment."""
+    with connect() as con:
+        finding_or_404(con, delivery_id, finding_id)
+        found = report(con, delivery_id)["findings"]
+        target = next(f for f in found if f["id"] == finding_id)
+        with con:
+            con.executemany("INSERT INTO decisions (delivery_id, finding_id, actor, action, reason) VALUES (?, ?, 'human', ?, ?)",
+                            [(delivery_id, f["id"], body.action, body.reason.strip() or "decided by a person")
+                             for f in rules.siblings(found, target)])
+        rules.resplit(con, delivery_id, "human")
+        return delivery_view(con, delivery_id)
 
 
 @app.get("/")
