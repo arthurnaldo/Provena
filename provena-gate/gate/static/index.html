@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provena Gate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a procurement desk. Left rail = account + library + past deliveries; main = the delivery under review. */
+:root {
+  --bg: #f5f6f4; --panel: #ffffff; --ink: #1c2420; --muted: #5d6a63; --line: #dde2de;
+  --accent: #2f5d50; --approve: #2e7d4f; --hold: #b4432f; --review: #b7791f; --chip: #eef1ee;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131816; --panel: #1b211f; --ink: #e4e9e6; --muted: #98a59e; --line: #2c3532;
+  --accent: #7fb8a4; --approve: #5cbf85; --hold: #e2735d; --review: #e0a948; --chip: #242c29; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #131816; --panel: #1b211f; --ink: #e4e9e6; --muted: #98a59e; --line: #2c3532;
+  --accent: #7fb8a4; --approve: #5cbf85; --hold: #e2735d; --review: #e0a948; --chip: #242c29; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans) }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px max(16px, env(safe-area-inset-left, 0px));
+  border-bottom: 1px solid var(--line); background: var(--panel) }
+header h1 { font-size: 17px; margin: 0; letter-spacing: .01em } header h1 span { color: var(--accent) }
+.status { color: var(--muted); font-size: 12.5px; flex: 1 }
+main { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px)) }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr) } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0 }
+.rail { display: grid; gap: 20px; align-content: start } .stack { display: grid; gap: 20px; align-content: start; min-width: 0 }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; font-weight: 600 }
+h3 { font-size: 15px; margin: 0 }
+label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted) }
+input, select, button { font: inherit; color: var(--ink) }
+input[type=text], input[type=number], select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100% }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
+button { background: var(--accent); color: var(--panel); border: 0; border-radius: 6px; padding: 8px 14px; font-weight: 500; cursor: pointer }
+button.quiet { background: var(--chip); color: var(--ink) } button:disabled { opacity: .5; cursor: wait }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end } .row > label { flex: 1 1 120px }
+.muted { color: var(--muted) } .small { font-size: 12.5px } .mono, td.num { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.list { display: grid; gap: 2px; max-height: 220px; overflow: auto; font-size: 13px }
+.list button { background: none; color: var(--ink); text-align: left; padding: 6px 8px; display: flex; justify-content: space-between; gap: 8px }
+.list button:hover, .list button.on { background: var(--chip) }
+.split { display: grid; gap: 10px }
+.bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--chip) }
+.bar i { display: block } .totals { display: flex; flex-wrap: wrap; gap: 8px 28px }
+.total b { display: block; font: 500 20px var(--mono) } .total span { font-size: 12px; color: var(--muted) }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--chip); white-space: nowrap }
+.pill.hold { color: var(--hold) } .pill.escalate { color: var(--review) } .pill.static { color: var(--muted) }
+.table { overflow-x: auto } table { border-collapse: collapse; width: 100%; font-size: 13px }
+th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line) }
+td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top } td.reason { min-width: 260px }
+.report { white-space: pre-wrap; border-left: 3px solid var(--accent); padding: 4px 0 4px 12px }
+.banner { padding: 10px 12px; border-radius: 6px; background: var(--chip); font-size: 13px }
+.files { display: grid; gap: 6px; max-height: 240px; overflow: auto }
+.files .row { flex-wrap: nowrap } .files .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px }
+.files input { max-width: 160px }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px }
+.log { font-size: 12.5px; display: grid; gap: 4px; margin-top: 8px } .log div { display: grid; grid-template-columns: 64px 82px 1fr; gap: 8px }
+.empty { color: var(--muted); padding: 24px 0; text-align: center }
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .4s ease } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Provena <span>Gate</span></h1>
+  <div class="status" id="status">Loading…</div>
+  <label class="small" style="grid-auto-flow: column; align-items: center">Account
+    <select id="account"></select></label>
+</header>
+<main>
+  <div class="rail">
+    <section>
+      <h2>New account</h2>
+      <form id="newAccount" class="row">
+        <label>Name <input type="text" id="accName" required placeholder="e.g. Acme Robotics"></label>
+        <label class="small" style="display: flex; gap: 6px; align-items: center; flex: 1 1 100%">
+          <input type="checkbox" id="accShare"> Compare fingerprints with other buyers (opt-in)</label>
+        <button>Create</button>
+      </form>
+    </section>
+    <section>
+      <h2>Library</h2>
+      <div class="small muted" id="libCount">Footage this account already owns.</div>
+      <form id="libForm" class="row">
+        <label>Add clips <input type="file" id="libFiles" multiple accept="video/*" required></label>
+        <button>Add</button>
+      </form>
+      <div class="list" id="libList"></div>
+    </section>
+    <section>
+      <h2>Deliveries</h2>
+      <div class="list" id="delList"></div>
+    </section>
+  </div>
+  <div class="stack">
+    <section>
+      <h2>Check a delivery</h2>
+      <form id="delForm" class="row">
+        <label>Vendor <input type="text" id="vendor" required placeholder="e.g. Northlight Data"></label>
+        <label>Rate per hour ($) <input type="number" id="rate" required min="0" step="0.01" value="150"></label>
+        <label>Invoice total ($) <input type="number" id="invoice" required min="0" step="0.01"></label>
+        <label style="flex: 1 1 100%">Clips <input type="file" id="delFiles" multiple accept="video/*" required></label>
+        <div class="files" id="fileRows" style="flex: 1 1 100%"></div>
+        <button id="delSubmit">Check delivery</button>
+        <span class="small muted" id="delHint"></span>
+      </form>
+    </section>
+    <div id="result" class="stack"><section><div class="empty">Pick a delivery on the left, or check a new one.</div></section></div>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const money = n => "$" + (n ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const secs = (a, b) => `${a.toFixed(1)}–${b.toFixed(1)} s`;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const KIND = {repeat_in_delivery: "Repeat in delivery", in_own_library: "Already in library",
+              sold_to_other_buyer: "Sold to another buyer", public_dataset: "Public dataset"};
+let accounts = [], current = null, selected = null;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || `${r.status} ${r.statusText}`);
+  return body;
+}
+
+async function loadStatus() {
+  const s = await api("/api/status");
+  $("status").textContent = `${s.public_clips.toLocaleString()} public dataset clips indexed (${s.public_datasets.length} datasets) · ` +
+    (s.agent ? "Claude review on" : "Claude review off: rules only");
+}
+
+async function loadAccounts(pick) {
+  accounts = await api("/api/accounts");
+  $("account").innerHTML = accounts.map(a => `<option value="${a.id}">${esc(a.name)}${a.share_fingerprints ? " · sharing" : ""}</option>`).join("")
+    || "<option>No accounts yet</option>";
+  current = pick ?? current ?? accounts[0]?.id ?? null;
+  if (current) $("account").value = current;
+  await loadAccount();
+}
+
+async function loadAccount() {
+  if (!current) return;
+  const [lib, dels] = await Promise.all([api(`/api/accounts/${current}/library`), api(`/api/deliveries?account_id=${current}`)]);
+  $("libCount").textContent = `${lib.length} clip${lib.length === 1 ? "" : "s"}, ${(lib.reduce((s, c) => s + c.duration, 0) / 60).toFixed(1)} min of footage this account already owns.`;
+  $("libList").innerHTML = lib.slice(-50).reverse().map(c => `<div class="small" style="padding: 2px 8px">${esc(c.name)} <span class="muted mono">${c.duration.toFixed(1)} s</span></div>`).join("");
+  $("delList").innerHTML = dels.map(d => `<button data-id="${d.id}" class="${d.id === selected ? "on" : ""}"><span>#${d.id} ${esc(d.vendor)}</span><span class="muted">${money(d.invoice_total)} · ${d.status}</span></button>`).join("")
+    || `<div class="small muted">No deliveries yet.</div>`;
+  $("delList").querySelectorAll("button").forEach(b => b.onclick = () => showDelivery(+b.dataset.id));
+}
+
+async function showDelivery(id) {
+  selected = id;
+  render(await api(`/api/deliveries/${id}`));
+  loadAccount();
+}
+
+function render(d) {
+  const s = d.split || {approved: 0, held: 0, review: 0};
+  const total = d.delivery.invoice_total || 1;
+  const w = n => `${Math.max(0, 100 * n / total)}%`;
+  const rows = d.findings.map(f => `<tr>
+      <td>${esc(f.clip_name)}<div class="small muted">${esc(f.contributor)}</div></td>
+      <td><span class="pill">${KIND[f.kind]}</span>${f.static ? ` <span class="pill static">static</span>` : ""}</td>
+      <td class="num">${secs(f.clip_start, f.clip_end)}</td>
+      <td>${esc(f.source)}${f.match_name ? `<div class="small muted">${esc(f.match_name)}</div>` : ""}${f.first_seen ? `<div class="small muted">first seen ${f.first_seen}</div>` : ""}${f.licence ? `<div class="small muted">licence: ${esc(f.licence)}</div>` : ""}</td>
+      <td class="num">${f.votes}</td>
+      <td class="num">${money(f.amount)}</td>
+      <td><span class="pill ${f.action}">${f.action === "hold" ? "Hold" : "Person decides"}</span><div class="small muted">by ${f.actor}</div></td>
+      <td class="reason small">${esc(f.reason)}</td></tr>`).join("");
+  $("result").innerHTML = `
+    <section>
+      <div class="row" style="justify-content: space-between">
+        <h3>Delivery #${d.delivery.id} · ${esc(d.delivery.vendor)}</h3>
+        <span class="small muted">${d.delivery.clips} clips · ${(d.delivery.seconds / 60).toFixed(1)} min · ${money(d.delivery.rate_per_hour)}/h · ${d.delivery.status}</span>
+      </div>
+      <div class="split">
+        <div class="bar" role="img" aria-label="Invoice split"><i style="width:${w(s.approved)};background:var(--approve)"></i><i style="width:${w(s.held)};background:var(--hold)"></i><i style="width:${w(s.review)};background:var(--review)"></i></div>
+        <div class="totals">
+          <div class="total"><b>${money(d.delivery.invoice_total)}</b><span>Invoice</span></div>
+          <div class="total"><b>${money(s.approved)}</b><span><i class="dot" style="background:var(--approve)"></i>Approved</span></div>
+          <div class="total"><b>${money(s.held)}</b><span><i class="dot" style="background:var(--hold)"></i>Held</span></div>
+          <div class="total"><b>${money(s.review)}</b><span><i class="dot" style="background:var(--review)"></i>Waiting for a person</span></div>
+        </div>
+        ${s.overbilled ? `<div class="banner">Billed ${money(s.overbilled)} more than the delivered footage is worth.</div>` : ""}
+        ${s.whole_delivery_to_human ? `<div class="banner">Holds exceed the automatic limit, so the whole delivery goes to a person.</div>` : ""}
+        ${d.agent_note ? `<div class="banner">${esc(d.agent_note)}</div>` : ""}
+        ${Object.keys(d.errors).length ? `<div class="banner">Could not read: ${Object.keys(d.errors).map(esc).join(", ")}</div>` : ""}
+      </div>
+    </section>
+    ${d.buyer_report ? `<section><h2>Claude's review</h2><div class="report">${esc(d.buyer_report)}</div></section>` : ""}
+    <section>
+      <h2>Findings (${d.findings.length})</h2>
+      ${d.findings.length ? `<div class="table"><table><thead><tr><th>Clip</th><th>What</th><th>Seconds</th><th>Matches</th><th>Frames</th><th>Value</th><th>Action</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : `<div class="empty">No duplicate, owned, resold or public footage found. The whole invoice is approved.</div>`}
+    </section>
+    ${d.contributor_notes.length ? `<section><h2>Notes to contributors</h2>${d.contributor_notes.map(n => `<div class="small">${esc(n)}</div>`).join("")}</section>` : ""}
+    <section><details><summary>Decision log (${d.log.length} steps)</summary><div class="log">${d.log.map(l =>
+      `<div><span class="muted">${l.actor}</span><span>${l.action}</span><span class="muted">${esc(l.reason).slice(0, 400)}</span></div>`).join("")}</div></details></section>`;
+}
+
+$("account").onchange = e => { current = +e.target.value; selected = null; loadAccount(); };
+$("newAccount").onsubmit = async e => {
+  e.preventDefault();
+  try { const a = await api("/api/accounts", {method: "POST", headers: {"content-type": "application/json"},
+      body: JSON.stringify({name: $("accName").value, share_fingerprints: $("accShare").checked})});
+    $("accName").value = ""; await loadAccounts(a.id);
+  } catch (err) { alertBox(err.message); }
+};
+$("libForm").onsubmit = async e => {
+  e.preventDefault();
+  const fd = new FormData(); [...$("libFiles").files].forEach(f => fd.append("files", f));
+  const b = e.submitter; b.disabled = true; b.textContent = "Adding…";
+  try { const r = await api(`/api/accounts/${current}/library`, {method: "POST", body: fd});
+    if (Object.keys(r.errors).length) alertBox("Could not read: " + Object.keys(r.errors).join(", "));
+    $("libFiles").value = ""; await loadAccounts();
+  } catch (err) { alertBox(err.message); } finally { b.disabled = false; b.textContent = "Add"; }
+};
+$("delFiles").onchange = () => {
+  $("fileRows").innerHTML = [...$("delFiles").files].map((f, i) =>
+    `<div class="row"><span class="name">${esc(f.name)}</span><input type="text" id="who${i}" placeholder="Contributor"></div>`).join("");
+};
+$("delForm").onsubmit = async e => {
+  e.preventDefault();
+  const files = [...$("delFiles").files], who = {};
+  const fd = new FormData();
+  files.forEach((f, i) => { fd.append("files", f); who[f.name] = $(`who${i}`).value.trim(); });
+  for (const [k, v] of [["account_id", current], ["vendor", $("vendor").value], ["rate_per_hour", $("rate").value],
+                        ["invoice_total", $("invoice").value], ["contributors", JSON.stringify(who)]]) fd.append(k, v);
+  $("delSubmit").disabled = true; $("delHint").textContent = `Checking ${files.length} clips against your library, other buyers and public datasets, then Claude reviews…`;
+  try { const d = await api("/api/deliveries", {method: "POST", body: fd});
+    selected = d.delivery.id; render(d); $("delForm").reset(); $("fileRows").innerHTML = ""; await loadAccount();
+  } catch (err) { alertBox(err.message); } finally { $("delSubmit").disabled = false; $("delHint").textContent = ""; }
+};
+function alertBox(msg) { $("result").insertAdjacentHTML("afterbegin", `<section><div class="banner">${esc(msg)}</div></section>`); }
+
+loadStatus(); loadAccounts();
+</script>
+</body>
+</html>

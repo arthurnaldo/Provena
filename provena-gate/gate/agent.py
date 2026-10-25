@@ -24,8 +24,9 @@ Your job:
 2. Call decide for each finding you confirm or change, with a one-sentence reason a vendor would accept. Only use an \
 action listed as allowed for that finding.
 3. Call escalate when the evidence is ambiguous, with a specific question for the person reviewing it.
-4. Finish by calling write_report once: a short report for the buyer and a plain note for each contributor whose \
-pay is affected.
+4. Call get_delivery again for the final split, then finish by calling write_report once: a short report for the \
+buyer and a plain note for each contributor whose pay is affected. Quote the split's amounts exactly; don't add up \
+amounts yourself.
 
 Use only facts from the tools; never invent matches, clips or numbers. A public-dataset match means the footage \
 appears in that public dataset; never say a model was trained on it. Contributors are often paid by the hour, so be \

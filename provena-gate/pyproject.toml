@@ -3,7 +3,7 @@ name = "provena-gate"
 version = "0.1.0"
 description = "Checks video data deliveries for duplicate, edited and public-dataset footage before payment"
 requires-python = ">=3.11"
-dependencies = ["provena-audit", "anthropic"]
+dependencies = ["provena-audit[index]", "anthropic", "fastapi", "uvicorn", "python-multipart"]
 
 [dependency-groups]
 dev = ["pytest"]

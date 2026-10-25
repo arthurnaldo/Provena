@@ -67,10 +67,10 @@ def check_delivery(con: sqlite3.Connection, root: str | Path, public: Index | No
     rows, static_seen = [], set()
     for c, kind, src, ref, cs, ce, ms, me, votes, details in sorted(found, key=lambda f: -f[8]):
         static = is_static(pdq[c], cs, ce)
-        if static and (c, ref) in static_seen:  # still footage matches at every shift: keep the strongest only
+        if static and (c, kind) in static_seen:  # still footage matches everywhere: keep the strongest of each kind
             continue
         if static:
-            static_seen.add((c, ref))
+            static_seen.add((c, kind))
         rows.append((did, c, kind, src, ref, cs, ce, ms, me, int(votes), int(static),
                      round((ce - cs) / 3600 * rate_per_hour, 2), json.dumps(details)))
     with con:
