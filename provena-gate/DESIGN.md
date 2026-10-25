@@ -45,7 +45,7 @@ is the part that would split out first (it holds the 2.5 GB index in memory and 
 
 ### 3.1 Matching engine: `provena-audit` (built before the event)
 
-Our own library, on PyPI (`provena-audit` 0.2.0), unchanged by this project.
+Our own library (`provena-audit`), unchanged by this project.
 
 - **Fingerprints:** a 256-bit PDQ hash (Meta's open perceptual image hash) of the full-size frame every 0.25 s
   (4 per second), plus a quality score. Frames below quality 50 (flat, featureless) are ignored for matching.
