@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from provena_audit.audit import Index
 
-from gate import agent, db, engine, rules
+from gate import agent, db, engine, evidence, rules
 from gate.findings import check_delivery, report
 
 HERE = Path(__file__).resolve().parent
@@ -175,6 +175,18 @@ def new_delivery(account_id: int = Form(...), vendor: str = Form(...), rate_per_
 def get_delivery(delivery_id: int) -> dict:
     with connect() as con:
         return delivery_view(con, delivery_id)
+
+
+@app.get("/api/deliveries/{delivery_id}/findings/{finding_id}/evidence")
+def finding_evidence(delivery_id: int, finding_id: int) -> dict:
+    """Side-by-side frames; another buyer's frames are never included."""
+    with connect() as con:
+        if con.execute("SELECT 1 FROM deliveries WHERE id = ?", (delivery_id,)).fetchone() is None:
+            raise HTTPException(404, f"no delivery {delivery_id}")
+        e = evidence.evidence(con, ROOT, delivery_id, finding_id)
+        if e is None:
+            raise HTTPException(404, f"no finding {finding_id} in delivery {delivery_id}")
+        return e
 
 
 @app.get("/")

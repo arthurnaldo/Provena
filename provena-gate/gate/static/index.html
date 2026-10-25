@@ -61,6 +61,11 @@ td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top } t
 details summary { cursor: pointer; color: var(--muted); font-size: 13px }
 .log { font-size: 12.5px; display: grid; gap: 4px; margin-top: 8px } .log div { display: grid; grid-template-columns: 64px 82px 1fr; gap: 8px }
 .empty { color: var(--muted); padding: 24px 0; text-align: center }
+button.ev { margin-top: 6px; padding: 3px 10px; font-size: 12px }
+.evrow td { background: var(--bg) } .evidence { display: grid; gap: 10px; margin-bottom: 8px }
+.frames { display: flex; gap: 8px; flex-wrap: wrap } figure { margin: 0; display: grid; gap: 2px }
+figure img { width: 200px; max-width: 100%; border-radius: 4px; border: 1px solid var(--line); display: block }
+figure.missing { width: 200px; height: 112px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 4px }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width .4s ease } }
 </style>
 </head>
@@ -171,7 +176,8 @@ function render(d) {
       <td class="num">${f.votes}</td>
       <td class="num">${money(f.amount)}</td>
       <td><span class="pill ${f.action}">${f.action === "hold" ? "Hold" : "Person decides"}</span><div class="small muted">by ${f.actor}</div></td>
-      <td class="reason small">${esc(f.reason)}</td></tr>`).join("");
+      <td class="reason small">${esc(f.reason)}<div><button class="quiet ev" data-ev="${f.id}">Show evidence</button></div></td></tr>
+      <tr class="evrow" id="ev${f.id}" hidden><td colspan="8"></td></tr>`).join("");
   $("result").innerHTML = `
     <section>
       <div class="row" style="justify-content: space-between">
@@ -201,6 +207,23 @@ function render(d) {
     ${d.contributor_notes.length ? `<section><h2>Notes to contributors</h2>${d.contributor_notes.map(n => `<div class="small">${esc(n)}</div>`).join("")}</section>` : ""}
     <section><details><summary>Decision log (${d.log.length} steps)</summary><div class="log">${d.log.map(l =>
       `<div><span class="muted">${l.actor}</span><span>${l.action}</span><span class="muted">${esc(l.reason).slice(0, 400)}</span></div>`).join("")}</div></details></section>`;
+  $("result").querySelectorAll("button.ev").forEach(b => b.onclick = () => toggleEvidence(d.delivery.id, +b.dataset.ev, b));
+}
+
+async function toggleEvidence(deliveryId, findingId, button) {
+  const row = $(`ev${findingId}`), cell = row.firstElementChild;
+  if (!row.hidden) { row.hidden = true; button.textContent = "Show evidence"; return; }
+  row.hidden = false; button.textContent = "Hide evidence";
+  if (cell.dataset.loaded) return;
+  cell.innerHTML = `<div class="small muted">Loading frames…</div>`;
+  try {
+    const e = await api(`/api/deliveries/${deliveryId}/findings/${findingId}/evidence`);
+    const strip = (title, frames) => `<div class="strip"><div class="small muted">${title}</div><div class="frames">${frames.map(x =>
+      x.src ? `<figure><img src="${x.src}" alt="frame at ${x.t} s"><figcaption class="mono small">${x.t.toFixed(1)} s</figcaption></figure>`
+            : `<figure class="missing small muted">no frame</figure>`).join("")}</div></div>`;
+    cell.innerHTML = `<div class="evidence">${strip("Delivered clip", e.clip)}${e.match ? strip("Match", e.match) : ""}</div>${e.note ? `<div class="banner">${esc(e.note)}</div>` : ""}`;
+    cell.dataset.loaded = "1";
+  } catch (err) { cell.innerHTML = `<div class="banner">${esc(err.message)}</div>`; }
 }
 
 $("account").onchange = e => { current = +e.target.value; selected = null; loadAccount(); };

@@ -33,7 +33,7 @@ def check_delivery(con: sqlite3.Connection, root: str | Path, public: Index | No
                           (account_id, vendor, rate_per_hour, invoice_total)).lastrowid
     contributor = {str(p): c for p, c in clips}
     folder = engine.delivery_dir(root, did)
-    added, errors = engine.fingerprint_into(folder, "dlv", [p for p, _ in clips])
+    added, errors = engine.fingerprint_into(folder, "dlv", [p for p, _ in clips], root)
     with con:
         con.executemany("INSERT INTO clips (id, account_id, delivery_id, contributor, name, duration) VALUES (?, ?, ?, ?, ?, ?)",
                         [(v["id"], account_id, did, contributor[v["path"]], v["name"], v["duration"]) for v in added])
@@ -59,7 +59,7 @@ def check_delivery(con: sqlite3.Connection, root: str | Path, public: Index | No
                 kind = ("in_own_library" if src == f"acct:{account_id}" else
                         "sold_to_other_buyer" if src.startswith("acct:") else "public_dataset")
                 details = {k: h.get(f) for k, f in (("licence", "licence_stated"), ("dataset_url", "source"),
-                                                    ("source_url", "source_url")) if h.get(f)}
+                                                    ("source_url", "source_url"), ("zip", "zip")) if h.get(f)}
                 found.append((v["id"], kind, src, h["id"], h["clip_start"], h["clip_end"], h["b_start"], h["b_end"],
                               h["votes"], details))
 

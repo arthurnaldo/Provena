@@ -7,6 +7,7 @@ engine's Index labels its hits "acct:<id>". Video is fingerprinted and never sto
 import json
 import secrets
 import sqlite3
+import subprocess
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -36,10 +37,23 @@ def delivery_dir(root: str | Path, delivery_id: int) -> Path:
     return Path(root) / "deliveries" / str(delivery_id)
 
 
-def fingerprint_into(folder: Path, tag: str, paths: list[str | Path]) -> tuple[list[dict], dict[str, str]]:
-    """Fingerprint video files into new shards in folder/send, in input order. Returns (fingerprints with id,
-    name and path, {path: error}). Files are not deleted here: the caller removes uploads, and a customer's own
-    folder stays untouched."""
+def thumbs_dir(root: str | Path, clip_id: str) -> Path:
+    """Evidence thumbnails of one clip: <n>.jpg is second n-1, 240 px wide. Shown only to the clip's own account."""
+    return Path(root) / "thumbs" / clip_id
+
+
+def _thumbnails(job: tuple[str, str]) -> None:
+    path, out = job
+    Path(out).mkdir(parents=True, exist_ok=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", path, "-vf", "fps=1,scale=240:-2", "-q:v", "5",
+                    f"{out}/%05d.jpg"], check=False)
+
+
+def fingerprint_into(folder: Path, tag: str, paths: list[str | Path],
+                     root: str | Path | None = None) -> tuple[list[dict], dict[str, str]]:
+    """Fingerprint video files into new shards in folder/send, in input order, plus evidence thumbnails under
+    root when given. Returns (fingerprints with id, name and path, {path: error}). Files are not deleted here:
+    the caller removes uploads, and a customer's own folder stays untouched."""
     paths = [str(p) for p in paths]
     send = Location(folder / "send")
     added, errors = [], {}
@@ -50,6 +64,8 @@ def fingerprint_into(folder: Path, tag: str, paths: list[str | Path]) -> tuple[l
                 continue
             fp["id"], fp["name"], fp["path"] = secrets.token_hex(8), Path(path).name, path
             added.append(fp)
+        if root is not None:
+            list(pool.map(_thumbnails, [(v["path"], str(thumbs_dir(root, v["id"]))) for v in added]))
     first = shards.shard_count(send, tag)
     for i in range(0, len(added), SHARD_SIZE):
         shards.write_shard(send, tag, first + i // SHARD_SIZE, added[i:i + SHARD_SIZE])
@@ -59,7 +75,7 @@ def fingerprint_into(folder: Path, tag: str, paths: list[str | Path]) -> tuple[l
 def add_to_library(con: sqlite3.Connection, root: str | Path, account_id: int,
                    paths: list[str | Path]) -> tuple[list[str], dict[str, str]]:
     """Fingerprint video files into an account's library. Returns (new clip IDs, {path: error})."""
-    added, errors = fingerprint_into(library_dir(root, account_id), "lib", paths)
+    added, errors = fingerprint_into(library_dir(root, account_id), "lib", paths, root)
     with con:
         con.executemany("INSERT INTO clips (id, account_id, name, duration) VALUES (?, ?, ?, ?)",
                         [(v["id"], account_id, v["name"], v["duration"]) for v in added])
