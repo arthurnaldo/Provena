@@ -17,7 +17,7 @@ This branch (`restart`) is a fresh start. `main` holds an older design (and a st
   built (local folders + S3/GCS, many machines, container image). See "Published" and "Audit tool".
 - Outreach started Oct 9, 2026 (see "Outreach log"). No customer conversations yet.
 - Direction (Oct 9 evening): leaning toward treating Provena as a portfolio project; see "Direction".
-- Cal Hacks: Oct 26, 2026.
+- Cal Hacks 13.0: Oct 23-25, 2026 (Palace of Fine Arts, SF; check-in Fri 1:30 PM, Devpost deadline Sun 9:00 AM, judging 10:30-12:30).
 - Oct 11, 2026: SSCD dropped for now; PDQ only (CPU machines, no GPU). Planned audit speed-ups: run all zips at
   once on CPU spot machines; later a C++ "vote while searching" kernel (no top-100 cap, no match list, each
   pair once). Estimates only, not measured.
@@ -689,7 +689,7 @@ Done: Modal stock run + audit + 60-pair verification; HF release; audit tool (lo
 4. Audit tool next: C++ audit kernel (see "Planned: C++ audit kernel"; fixes the vote double count); loop/repeat detection inside one video (key for paid collection; beware static shots),
    a way for customers to send fingerprints (upload link or shared bucket), SSCD + edit-undoing for edited
    copies.
-5. Cal Hacks (Oct 26) demo: upload an edited clip -> original + matching seconds (search endpoint + page).
+5. Cal Hacks (Oct 23-25) demo: upload an edited clip -> original + matching seconds (search endpoint + page).
 6. Index the OpenVid YouTube part (~$300) for the "is your footage in AI datasets?" lookup; then ID lists of
    link-only datasets; then FineVideo (10% sample first) after the scaling fixes.
 7. Experiments: model memorisation; benchmark leakage; label conflicts among duplicates.
