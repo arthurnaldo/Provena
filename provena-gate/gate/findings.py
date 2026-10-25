@@ -124,7 +124,8 @@ def report(con: sqlite3.Connection, delivery_id: int) -> dict:
             s = _seconds(fs)
             by_kind[kind] = {"clips": len({f["clip_id"] for f in fs}), "seconds": round(s, 1),
                              "amount": round(s / 3600 * rate, 2)}
-    d.update(clips=len(clips), hours=round(sum(c["duration"] for c in clips.values()) / 3600, 3))
+    seconds_delivered = sum(c["duration"] for c in clips.values())
+    d.update(clips=len(clips), seconds=round(seconds_delivered, 2), hours=round(seconds_delivered / 3600, 3))
     summary = {"flagged_clips": len({f["clip_id"] for f in findings}), "flagged_seconds": round(seconds, 1),
                "flagged_amount": round(seconds / 3600 * rate, 2), "static_findings": sum(f["static"] for f in findings),
                "by_kind": by_kind}

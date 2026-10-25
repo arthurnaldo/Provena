@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
     vendor TEXT NOT NULL,
     rate_per_hour REAL NOT NULL,                    -- invoice price per hour of footage
     invoice_total REAL NOT NULL,
-    status TEXT NOT NULL DEFAULT 'received',        -- received -> checked -> decided
+    status TEXT NOT NULL DEFAULT 'received',        -- received -> checked -> ruled -> decided
     errors TEXT NOT NULL DEFAULT '{}',              -- JSON {file: reason} for files that could not be read
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
