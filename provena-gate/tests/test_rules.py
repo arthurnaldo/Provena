@@ -49,5 +49,8 @@ def test_whole_delivery_to_human(tmp_path, videos):
 
 
 def test_weak_match_needs_a_person():
-    assert rules.allowed_actions({"static": False, "votes": 9}) == {"escalate"}
-    assert rules.allowed_actions({"static": False, "votes": 30}) == {"hold", "escalate"}
+    assert rules.allowed_actions({"static": False, "votes": 9, "clip_start": 0, "clip_end": 8}) == {"escalate"}
+    assert rules.allowed_actions({"static": False, "votes": 30, "clip_start": 0, "clip_end": 8}) == {"hold", "escalate"}
+    # a 2.8 s clip with every frame agreeing is strong; the same votes over 8 s are not
+    assert rules.allowed_actions({"static": False, "votes": 11, "clip_start": 0, "clip_end": 2.75}) == {"hold", "escalate"}
+    assert rules.allowed_actions({"static": False, "votes": 11, "clip_start": 0, "clip_end": 8}) == {"escalate"}

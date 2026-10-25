@@ -16,9 +16,15 @@ REASONS = {
 }
 
 
+def strong(finding: dict) -> bool:
+    """Many agreeing frames, or (for short clips) at least 8 agreeing frames covering 80% of the matched seconds."""
+    span = max(1.0, (finding.get("clip_end", 0) - finding.get("clip_start", 0)) * 4)
+    return finding["votes"] >= STRONG_VOTES or (finding["votes"] >= 8 and finding["votes"] / span >= 0.8)
+
+
 def allowed_actions(finding: dict) -> set[str]:
     """Static or weak matches are never held without a person."""
-    return {"escalate"} if finding["static"] or finding["votes"] < STRONG_VOTES else {"hold", "escalate"}
+    return {"hold", "escalate"} if strong(finding) and not finding["static"] else {"escalate"}
 
 
 def default_action(finding: dict) -> str:
@@ -75,8 +81,8 @@ def split(r: dict, actions: dict[int, str]) -> dict:
         held_s += _length(held)
         review_s += _length(both) - _length(held)
     overbilled = max(0.0, round(billed - r["delivery"]["seconds"] / 3600 * rate, 2))
-    held = held_s / 3600 * rate + overbilled
-    review = review_s / 3600 * rate
+    held = min(billed, held_s / 3600 * rate + overbilled)
+    review = min(billed - held, review_s / 3600 * rate)
     whole = held > MAX_AUTO_HOLD * billed
     approved = 0.0 if whole else max(0.0, billed - held - review)
     if whole:

@@ -63,9 +63,21 @@ def check_delivery(con: sqlite3.Connection, root: str | Path, public: Index | No
                 found.append((v["id"], kind, src, h["id"], h["clip_start"], h["clip_end"], h["b_start"], h["b_end"],
                               h["votes"], details))
 
+    # A public dataset can list the same footage many times (OpenVid files one clip under several categories):
+    # keep the strongest match per clip and dataset, and count the other listings.
+    listings: dict = {}
+    for f in found:
+        if f[1] == "public_dataset":
+            listings[(f[0], f[2])] = listings.get((f[0], f[2]), 0) + 1
     pdq = {v["id"]: v["pdq"] for v in added}
-    rows, static_seen = [], set()
+    rows, static_seen, public_seen = [], set(), set()
     for c, kind, src, ref, cs, ce, ms, me, votes, details in sorted(found, key=lambda f: -f[8]):
+        if kind == "public_dataset":
+            if (c, src) in public_seen:
+                continue
+            public_seen.add((c, src))
+            if listings[(c, src)] > 1:
+                details = {**details, "other_listings": listings[(c, src)] - 1}
         static = is_static(pdq[c], cs, ce)
         if static and (c, kind) in static_seen:  # still footage matches everywhere: keep the strongest of each kind
             continue
